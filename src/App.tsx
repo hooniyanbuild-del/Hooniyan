@@ -296,7 +296,11 @@ export default function App() {
   };
 
   const handleGoogleLogin = async () => {
-    await signInWithGoogle();
+    const cred = await signInWithGoogle();
+    if (cred.user && !cred.user.emailVerified) {
+      await signOutUser();
+      throw new Error('email-not-verified');
+    }
   };
 
   const handleSignOut = async () => {

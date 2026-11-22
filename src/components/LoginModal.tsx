@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, HardHat, Eye } from 'lucide-react';
 
 interface LoginModalProps {
@@ -15,6 +15,13 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
+  useEffect(() => {
+    if (isOpen) {
+      setErrorMsg('');
+      setIsLoading(false);
+    }
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const handleLogin = async () => {
@@ -22,10 +29,32 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     setErrorMsg('');
     try {
       await onGoogleLogin();
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Gagal masuk dengan Google.';
-      if (!msg.includes('popup-closed-by-user')) {
-        setErrorMsg('Gagal masuk dengan akun Google. Silakan coba lagi.');
+    } catch (err: unknown) {
+      const code =
+        typeof err === 'object' && err !== null && 'code' in err
+          ? String((err as { code?: unknown }).code || '')
+          : '';
+      const msg = err instanceof Error ? err.message : '';
+      const combined = `${code} ${msg}`;
+
+      if (combined.includes('popup-closed-by-user') || combined.includes('cancelled-popup-request')) {
+        return;
+      }
+
+      if (combined.includes('unauthorized-domain')) {
+        setErrorMsg(
+          `Domain "${window.location.hostname}" belum ditambahkan di Firebase Authentication → Settings → Authorized domains.`
+        );
+      } else if (combined.includes('popup-blocked')) {
+        setErrorMsg(
+          'Popup login diblokir oleh browser. Izinkan pop-up di Safari/Chrome atau buka link langsung di Safari (bukan browser dalam WhatsApp).'
+        );
+      } else if (combined.includes('email-not-verified')) {
+        setErrorMsg('Akun Google ini belum memiliki email terverifikasi.');
+      } else if (combined.includes('network-request-failed')) {
+        setErrorMsg('Koneksi internet bermasalah. Periksa jaringan lalu coba lagi.');
+      } else {
+        setErrorMsg(`Gagal masuk dengan Google${code ? ` (${code})` : ''}. Silakan coba lagi.`);
       }
     } finally {
       setIsLoading(false);
