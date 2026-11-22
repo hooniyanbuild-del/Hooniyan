@@ -12,13 +12,26 @@ import {
   compressVideoFrame,
   estimateDataUrlKb,
 } from '../utils/imageCompression';
+import {
+  calculateMilestoneContribution,
+  calculateTotalProgress,
+} from '../utils/progressSync';
+
+export interface PhotoMilestoneUpdate {
+  milestoneId: string;
+  milestoneName: string;
+  progressPercent: number;
+}
 
 interface PhotoUploadModalProps {
   isOpen: boolean;
   onClose: () => void;
   milestones: Milestone[];
   supervisorName: string;
-  onSavePhoto: (photo: SitePhoto) => Promise<void> | void;
+  onSavePhoto: (
+    photo: SitePhoto,
+    milestoneUpdate?: PhotoMilestoneUpdate
+  ) => Promise<void> | void;
 }
 
 export const PhotoUploadModal: React.FC<PhotoUploadModalProps> = ({
@@ -30,7 +43,10 @@ export const PhotoUploadModal: React.FC<PhotoUploadModalProps> = ({
 }) => {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [phaseName, setPhaseName] = useState(milestones[0]?.name || '[belum diisi]');
+  const [selectedMilestoneId, setSelectedMilestoneId] = useState(milestones[0]?.id || '');
+  const [milestonePercent, setMilestonePercent] = useState<number>(
+    milestones[0]?.progressPercent ?? 0
+  );
   const [imagePreview, setImagePreview] = useState<string>('');
   const [beforePreview, setBeforePreview] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -58,6 +74,14 @@ export const PhotoUploadModal: React.FC<PhotoUploadModalProps> = ({
   };
 
   useEffect(() => {
+    if (isOpen && milestones.length > 0) {
+      const current =
+        milestones.find((m) => m.id === selectedMilestoneId) ||
+        milestones.find((m) => m.progressPercent < 100) ||
+        milestones[0];
+      setSelectedMilestoneId(current.id);
+      setMilestonePercent(current.progressPercent);
+    }
     if (!isOpen) {
       stopCameraStream();
       setCameraTarget(null);
@@ -66,7 +90,7 @@ export const PhotoUploadModal: React.FC<PhotoUploadModalProps> = ({
     return () => {
       stopCameraStream();
     };
-  }, [isOpen]);
+  }, [isOpen, milestones]);
 
   useEffect(() => {
     if (!cameraTarget || !isOpen) {
@@ -152,10 +176,30 @@ export const PhotoUploadModal: React.FC<PhotoUploadModalProps> = ({
     setCameraTarget(null);
   };
 
+  const selectedMilestone = milestones.find((m) => m.id === selectedMilestoneId) || milestones[0];
+  const currentTotalProgress = calculateTotalProgress(milestones);
+  const projectedTotalProgress = selectedMilestone
+    ? calculateTotalProgress(
+        milestones.map((m) =>
+          m.id === selectedMilestone.id ? { ...m, progressPercent: milestonePercent } : m
+        )
+      )
+    : currentTotalProgress;
+
+  const handleSelectMilestone = (id: string) => {
+    setSelectedMilestoneId(id);
+    const found = milestones.find((m) => m.id === id);
+    if (found) {
+      setMilestonePercent(found.progressPercent);
+    }
+  };
+
   const resetForm = () => {
     setTitle('');
     setDescription('');
-    setPhaseName(milestones[0]?.name || '[belum diisi]');
+    const nextDefault = milestones.find((m) => m.progressPercent < 100) || milestones[0];
+    setSelectedMilestoneId(nextDefault?.id || '');
+    setMilestonePercent(nextDefault?.progressPercent ?? 0);
     setImagePreview('');
     setBeforePreview('');
     setCameraTarget(null);
@@ -176,6 +220,7 @@ export const PhotoUploadModal: React.FC<PhotoUploadModalProps> = ({
     const now = new Date();
     const dateStr = now.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
     const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')} WIB`;
+    const activePhaseName = selectedMilestone?.name || '[belum diisi]';
 
     const newPhoto: SitePhoto = {
       id: `p-${Date.now()}`,
@@ -185,15 +230,24 @@ export const PhotoUploadModal: React.FC<PhotoUploadModalProps> = ({
       beforeImageUrl: beforePreview || undefined,
       date: dateStr,
       time: timeStr,
-      phaseName: phaseName || '[belum diisi]',
-      category: phaseName || '[belum diisi]',
+      phaseName: activePhaseName,
+      category: activePhaseName,
       supervisorName: supervisorName || '[belum diisi]',
       weather: '[belum diisi]',
       isMilestoneProof: true,
     };
 
+    const milestoneUpdate: PhotoMilestoneUpdate | undefined =
+      selectedMilestone && milestonePercent !== selectedMilestone.progressPercent
+        ? {
+            milestoneId: selectedMilestone.id,
+            milestoneName: selectedMilestone.name,
+            progressPercent: milestonePercent,
+          }
+        : undefined;
+
     try {
-      await onSavePhoto(newPhoto);
+      await onSavePhoto(newPhoto, milestoneUpdate);
       resetForm();
       onClose();
     } finally {
@@ -353,20 +407,68 @@ export const PhotoUploadModal: React.FC<PhotoUploadModalProps> = ({
                 Tahapan Pekerjaan *
               </label>
               <select
-                value={phaseName}
-                onChange={(e) => setPhaseName(e.target.value)}
+                value={selectedMilestone?.id || ''}
+                onChange={(e) => handleSelectMilestone(e.target.value)}
                 className="w-full bg-[#202121] border border-[#3d3e3e] rounded-xl px-3 py-2 text-white outline-none focus:border-[#f95700]"
               >
                 {milestones.length > 0 ? (
                   milestones.map((m) => (
-                    <option key={m.id} value={m.name}>
-                      {m.name}
+                    <option key={m.id} value={m.id}>
+                      {m.name} (Bobot {m.weight}% • {m.progressPercent}%)
                     </option>
                   ))
                 ) : (
-                  <option value="[belum diisi]">[belum diisi]</option>
+                  <option value="">[belum diisi]</option>
                 )}
               </select>
+
+              {selectedMilestone && (
+                <div className="mt-2.5 bg-[#202121] border border-[#3d3e3e] rounded-xl p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-semibold text-gray-300">
+                      Progres Tahap Ini (Bobot {selectedMilestone.weight}%)
+                    </span>
+                    <span className="text-xs font-black text-[#f95700]">
+                      {milestonePercent}%
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    step={5}
+                    value={milestonePercent}
+                    onChange={(e) => setMilestonePercent(Number(e.target.value))}
+                    className="w-full accent-[#f95700]"
+                  />
+                  <div className="flex items-center justify-between gap-1.5">
+                    {[0, 25, 50, 75, 100].map((val) => (
+                      <button
+                        key={val}
+                        type="button"
+                        onClick={() => setMilestonePercent(val)}
+                        className={`flex-1 py-1 rounded-lg text-[10px] font-bold border transition-colors ${
+                          milestonePercent === val
+                            ? 'bg-[#f95700] border-[#f95700] text-white'
+                            : 'bg-[#282929] border-[#3d3e3e] text-gray-300 hover:text-white'
+                        }`}
+                      >
+                        {val}%
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex items-center justify-between text-[10px] text-gray-400 pt-1 border-t border-[#2d2e2e]">
+                    <span>
+                      Kontribusi tahap: <strong className="text-gray-200">{calculateMilestoneContribution(selectedMilestone.weight, milestonePercent)}%</strong> / {selectedMilestone.weight}%
+                    </span>
+                    <span>
+                      Total Proyek: <strong className={projectedTotalProgress !== currentTotalProgress ? 'text-emerald-400' : 'text-gray-200'}>
+                        {projectedTotalProgress}%
+                      </strong>
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div>

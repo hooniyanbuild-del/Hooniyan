@@ -274,7 +274,11 @@ service cloud.firestore {
           && incoming().id == recordId
           && incoming().createdAt == request.time
           && parentProjectExistsAfter(projectId);
-        allow update, delete: if false;
+        allow update: if false;
+        allow delete: if isValidId(projectId)
+          && isValidId(recordId)
+          && isVerifiedUser()
+          && exists(/databases/$(database)/documents/projects/$(projectId));
       }
 
       match /photos/{photoId} {
@@ -287,7 +291,11 @@ service cloud.firestore {
           && incoming().id == photoId
           && incoming().createdAt == request.time
           && parentProjectExistsAfter(projectId);
-        allow update, delete: if false;
+        allow update: if false;
+        allow delete: if isValidId(projectId)
+          && isValidId(photoId)
+          && isVerifiedUser()
+          && exists(/databases/$(database)/documents/projects/$(projectId));
       }
 
       match /messages/{messageId} {
@@ -311,7 +319,10 @@ service cloud.firestore {
           && incoming().projectId == existing().projectId
           && incoming().createdAt == existing().createdAt
           && incoming().diff(existing()).affectedKeys().hasOnly(['read']);
-        allow delete: if false;
+        allow delete: if isValidId(projectId)
+          && isValidId(messageId)
+          && isVerifiedUser()
+          && exists(/databases/$(database)/documents/projects/$(projectId));
       }
 
       match /paymentTerms/{termId} {
@@ -351,7 +362,10 @@ service cloud.firestore {
           && incoming().projectId == existing().projectId
           && incoming().createdAt == existing().createdAt
           && incoming().diff(existing()).affectedKeys().hasOnly(['read']);
-        allow delete: if false;
+        allow delete: if isValidId(projectId)
+          && isValidId(notificationId)
+          && isVerifiedUser()
+          && exists(/databases/$(database)/documents/projects/$(projectId));
       }
     }
   }

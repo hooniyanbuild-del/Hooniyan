@@ -22,6 +22,10 @@ import {
   createNotificationInDb,
   markNotificationReadInDb,
   markAllNotificationsReadInDb,
+  deletePhotoInDb,
+  deleteWeeklyRecordInDb,
+  deleteMessageInDb,
+  deleteNotificationInDb,
 } from './services/projectService';
 import { Header } from './components/Header';
 import { BottomNav, MainTab } from './components/BottomNav';
@@ -30,7 +34,7 @@ import { ProgressView } from './components/ProgressView';
 import { PhotoGalleryTab } from './components/PhotoGalleryTab';
 import { LiveChatTab } from './components/LiveChatTab';
 import { NotificationModal } from './components/NotificationModal';
-import { PhotoUploadModal } from './components/PhotoUploadModal';
+import { PhotoUploadModal, PhotoMilestoneUpdate } from './components/PhotoUploadModal';
 import { PdfReportModal } from './components/PdfReportModal';
 import { LoginModal } from './components/LoginModal';
 import { ShareModal } from './components/ShareModal';
@@ -60,6 +64,10 @@ export default function App() {
   const [isAuthorizedEditor, setIsAuthorizedEditor] = useState(false);
 
   const activeRole: UserRole = isAuthorizedEditor ? 'pengawas' : 'klien';
+  const isSupervisorEntryUrl = useMemo(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('mode') === 'pengawas' || params.get('login') === '1';
+  }, []);
 
   const [project, setProject] = useState<Project>(INITIAL_PROJECTS[0]);
   const [notifications, setNotifications] = useState<ProjectNotification[]>(INITIAL_NOTIFICATIONS);
@@ -246,10 +254,22 @@ export default function App() {
     }
   };
 
-  const handleSavePhoto = async (photo: SitePhoto) => {
+  const handleSavePhoto = async (
+    photo: SitePhoto,
+    milestoneUpdate?: PhotoMilestoneUpdate
+  ) => {
     if (!isAuthorizedEditor) return;
     try {
       await savePhotoInDb(project.id, photo);
+      if (milestoneUpdate) {
+        await updateMilestoneInDb(
+          project.id,
+          milestoneUpdate.milestoneId,
+          milestoneUpdate.progressPercent,
+          undefined,
+          project.milestones
+        );
+      }
       try {
         confetti({
           particleCount: 35,
@@ -259,7 +279,10 @@ export default function App() {
       } catch {
         // ignore
       }
-      await triggerNotification('Foto Lapangan Baru', photo.title, 'foto', 'galeri');
+      const notifDesc = milestoneUpdate
+        ? `${photo.title} • ${milestoneUpdate.milestoneName} (${milestoneUpdate.progressPercent}%)`
+        : photo.title;
+      await triggerNotification('Foto Lapangan Baru', notifDesc, 'foto', 'galeri');
     } catch (err) {
       setDbError(err instanceof Error ? err : new Error(String(err)));
     }
@@ -295,6 +318,42 @@ export default function App() {
     }
   };
 
+  const handleDeletePhoto = async (photoId: string) => {
+    if (!isAuthorizedEditor) return;
+    try {
+      await deletePhotoInDb(project.id, photoId);
+    } catch (err) {
+      setDbError(err instanceof Error ? err : new Error(String(err)));
+    }
+  };
+
+  const handleDeleteWeeklyRecord = async (week: number) => {
+    if (!isAuthorizedEditor) return;
+    try {
+      await deleteWeeklyRecordInDb(project.id, week, project.weeklyRecords);
+    } catch (err) {
+      setDbError(err instanceof Error ? err : new Error(String(err)));
+    }
+  };
+
+  const handleDeleteMessage = async (messageId: string) => {
+    if (!isAuthorizedEditor) return;
+    try {
+      await deleteMessageInDb(project.id, messageId);
+    } catch (err) {
+      setDbError(err instanceof Error ? err : new Error(String(err)));
+    }
+  };
+
+  const handleDeleteNotification = async (notifId: string) => {
+    if (!isAuthorizedEditor) return;
+    try {
+      await deleteNotificationInDb(project.id, notifId);
+    } catch (err) {
+      setDbError(err instanceof Error ? err : new Error(String(err)));
+    }
+  };
+
   const handleGoogleLogin = async () => {
     const cred = await signInWithGoogle();
     if (cred.user && !cred.user.emailVerified) {
@@ -314,6 +373,7 @@ export default function App() {
         currentProject={project}
         activeRole={activeRole}
         signedInEmail={signedInEmail}
+        showLoginButton={isSupervisorEntryUrl}
         notifications={effectiveNotifications}
         onOpenNotifications={() => setIsNotificationOpen(true)}
         onOpenLogin={() => setIsLoginModalOpen(true)}
@@ -368,11 +428,13 @@ export default function App() {
             plannedProgress={project.plannedProgress}
             currentWeek={project.currentWeek}
             totalWeeks={project.totalWeeks}
+            projectStartDate={project.startDate}
             currentRole={activeRole}
             activeSubTab={progressSubTab}
             onChangeSubTab={setProgressSubTab}
             onUpdateMilestone={handleUpdateMilestone}
             onAddWeeklyRecord={handleAddWeeklyRecord}
+            onDeleteWeeklyRecord={handleDeleteWeeklyRecord}
           />
         )}
 
@@ -382,6 +444,7 @@ export default function App() {
             photos={project.photos}
             currentRole={activeRole}
             onOpenUploadModal={() => setIsUploadModalOpen(true)}
+            onDeletePhoto={handleDeletePhoto}
           />
         )}
 
@@ -394,6 +457,7 @@ export default function App() {
             supervisorPhone={project.supervisorPhone}
             clientName={project.clientName}
             onSendMessage={handleSendMessage}
+            onDeleteMessage={handleDeleteMessage}
           />
         )}
       </main>
@@ -438,6 +502,7 @@ export default function App() {
         isOpen={isNotificationOpen}
         onClose={() => setIsNotificationOpen(false)}
         notifications={effectiveNotifications}
+        currentRole={activeRole}
         onMarkAllAsRead={async () => {
           if (activeRole === 'pengawas') {
             const unreadIds = notifications.filter((n) => !n.read).map((n) => n.id);
@@ -459,6 +524,7 @@ export default function App() {
           else setActiveTab('progres');
           setIsNotificationOpen(false);
         }}
+        onDeleteNotification={handleDeleteNotification}
       />
 
       <PhotoUploadModal

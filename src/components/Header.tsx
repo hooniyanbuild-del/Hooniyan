@@ -15,6 +15,7 @@ interface HeaderProps {
   currentProject: Project;
   activeRole: UserRole;
   signedInEmail: string | null;
+  showLoginButton: boolean;
   notifications: ProjectNotification[];
   onOpenNotifications: () => void;
   onOpenLogin: () => void;
@@ -25,6 +26,7 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({
   activeRole,
   signedInEmail,
+  showLoginButton,
   notifications,
   onOpenNotifications,
   onOpenLogin,
@@ -93,7 +95,7 @@ export const Header: React.FC<HeaderProps> = ({
             )}
           </button>
 
-          {/* Login / Logout */}
+          {/* Login / Logout (Masuk only visible on supervisor URL) */}
           {activeRole === 'pengawas' ? (
             <button
               type="button"
@@ -104,7 +106,7 @@ export const Header: React.FC<HeaderProps> = ({
               <LogOut className="w-3.5 h-3.5 text-gray-400" />
               <span className="hidden sm:inline">Keluar</span>
             </button>
-          ) : (
+          ) : showLoginButton ? (
             <button
               type="button"
               onClick={onOpenLogin}
@@ -114,7 +116,7 @@ export const Header: React.FC<HeaderProps> = ({
               <LogIn className="w-3.5 h-3.5" />
               <span>Masuk</span>
             </button>
-          )}
+          ) : null}
         </div>
       </div>
     </header>

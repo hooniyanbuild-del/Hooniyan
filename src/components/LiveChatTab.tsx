@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { 
-  Send, 
-  HardHat, 
-  Clock, 
-  MessageSquare
+import {
+  Send,
+  HardHat,
+  Clock,
+  MessageSquare,
+  Trash2,
 } from 'lucide-react';
 import { ChatMessage, UserRole } from '../types/project';
 
@@ -14,6 +15,7 @@ interface LiveChatTabProps {
   supervisorPhone: string;
   clientName: string;
   onSendMessage: (msg: { text: string; role: UserRole; attachmentUrl?: string; isVoice?: boolean }) => void;
+  onDeleteMessage?: (messageId: string) => Promise<void> | void;
 }
 
 export const LiveChatTab: React.FC<LiveChatTabProps> = ({
@@ -22,8 +24,10 @@ export const LiveChatTab: React.FC<LiveChatTabProps> = ({
   supervisorName,
   clientName,
   onSendMessage,
+  onDeleteMessage,
 }) => {
   const [inputText, setInputText] = useState('');
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -54,8 +58,8 @@ export const LiveChatTab: React.FC<LiveChatTabProps> = ({
           </div>
           <div>
             <h3 className="text-sm font-bold text-white">
-              {currentRole === 'klien' 
-                ? (supervisorName || '[belum diisi]') 
+              {currentRole === 'klien'
+                ? (supervisorName || '[belum diisi]')
                 : (clientName || '[belum diisi]')}
             </h3>
             <p className="text-[11px] text-gray-400">
@@ -88,6 +92,38 @@ export const LiveChatTab: React.FC<LiveChatTabProps> = ({
                 <div className="flex items-center space-x-1.5 mb-1 px-1">
                   <span className="text-[10px] text-gray-400 font-semibold">{msg.senderName}</span>
                   <span className="text-[9px] text-gray-500">{msg.timeString}</span>
+                  {currentRole === 'pengawas' && onDeleteMessage && (
+                    confirmDeleteId === msg.id ? (
+                      <span className="flex items-center space-x-1 ml-1">
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            await onDeleteMessage(msg.id);
+                            setConfirmDeleteId(null);
+                          }}
+                          className="text-[9px] font-bold bg-red-600 text-white px-1.5 py-0.5 rounded"
+                        >
+                          Hapus
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmDeleteId(null)}
+                          className="text-[9px] text-gray-400 hover:text-white"
+                        >
+                          Batal
+                        </button>
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setConfirmDeleteId(msg.id)}
+                        className="text-gray-500 hover:text-red-400 p-0.5"
+                        title="Hapus pesan"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    )
+                  )}
                 </div>
 
                 <div

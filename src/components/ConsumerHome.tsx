@@ -8,6 +8,7 @@ import {
   ImageIcon 
 } from 'lucide-react';
 import { Project, UserRole, SitePhoto } from '../types/project';
+import { calculateTotalProgress } from '../utils/progressSync';
 
 interface ConsumerHomeProps {
   project: Project;
@@ -26,6 +27,18 @@ export const ConsumerHome: React.FC<ConsumerHomeProps> = ({
 }) => {
   const latestPhoto: SitePhoto | undefined = project.photos[0];
   const latestWeek = project.weeklyRecords[project.weeklyRecords.length - 1];
+  const effectiveProgress =
+    project.milestones.length > 0
+      ? calculateTotalProgress(project.milestones)
+      : project.currentProgress;
+  const liveStatus =
+    project.weeklyRecords.length > 0
+      ? effectiveProgress > project.plannedProgress
+        ? 'Ahead'
+        : effectiveProgress < project.plannedProgress
+        ? 'Delayed'
+        : 'On Track'
+      : project.status;
 
   return (
     <div className="space-y-4 pb-20 sm:pb-8 max-w-2xl lg:max-w-4xl mx-auto">
@@ -72,7 +85,7 @@ export const ConsumerHome: React.FC<ConsumerHomeProps> = ({
         {/* Angka Progres */}
         <div className="flex items-baseline space-x-3 my-2">
           <span className="text-4xl sm:text-5xl font-black text-white tracking-tight">
-            {project.currentProgress}%
+            {effectiveProgress}%
           </span>
           <span className="text-sm font-bold text-gray-300">
             Selesai
@@ -83,7 +96,7 @@ export const ConsumerHome: React.FC<ConsumerHomeProps> = ({
         <div className="w-full bg-[#202121] h-3.5 rounded-full overflow-hidden border border-[#3d3e3e] my-3">
           <div
             className="h-full bg-linear-to-r from-amber-500 to-[#f95700] rounded-full transition-all duration-700"
-            style={{ width: `${project.currentProgress}%` }}
+            style={{ width: `${effectiveProgress}%` }}
           />
         </div>
 
@@ -91,7 +104,7 @@ export const ConsumerHome: React.FC<ConsumerHomeProps> = ({
         <div className="flex flex-wrap items-center justify-between gap-2 text-xs pt-1 pb-4 border-b border-[#3d3e3e]">
           <div className="flex items-center space-x-1.5 text-gray-300 bg-[#202121] px-2.5 py-1 rounded-lg border border-[#3d3e3e]">
             <span>Status:</span>
-            <strong className="text-white">{project.status || '[belum diisi]'}</strong>
+            <strong className="text-white">{liveStatus || '[belum diisi]'}</strong>
           </div>
           <span className="text-gray-400 text-xs">
             Target Selesai: <strong className="text-gray-200">{project.targetCompletionDate || '[belum diisi]'}</strong>
@@ -281,15 +294,21 @@ export const ConsumerHome: React.FC<ConsumerHomeProps> = ({
 
                 <div className="flex items-center justify-between sm:justify-end space-x-3 shrink-0">
                   <span className="font-bold text-[#f95700] text-xs">{term.nominalFormatted}</span>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                    term.status === 'Lunas'
-                      ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
-                      : term.status === 'Menunggu Progres'
-                      ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
-                      : 'bg-gray-800 text-gray-400'
-                  }`}>
-                    {term.status}
-                  </span>
+                  {term.status !== 'Lunas' && term.targetBobot > 0 && effectiveProgress >= term.targetBobot ? (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                      Target Bobot Tercapai
+                    </span>
+                  ) : (
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                      term.status === 'Lunas'
+                        ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
+                        : term.status === 'Menunggu Progres'
+                        ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+                        : 'bg-gray-800 text-gray-400'
+                    }`}>
+                      {term.status}
+                    </span>
+                  )}
                 </div>
               </div>
             ))}

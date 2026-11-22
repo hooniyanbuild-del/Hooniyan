@@ -1,32 +1,37 @@
 import React from 'react';
-import { 
-  X, 
-  Bell, 
-  CheckCheck, 
-  Image as ImageIcon, 
-  TrendingUp, 
-  Flag, 
-  MessageSquare, 
-  AlertTriangle 
+import {
+  X,
+  Bell,
+  CheckCheck,
+  Image as ImageIcon,
+  TrendingUp,
+  Flag,
+  MessageSquare,
+  AlertTriangle,
+  Trash2,
 } from 'lucide-react';
-import { ProjectNotification } from '../types/project';
+import { ProjectNotification, UserRole } from '../types/project';
 
 interface NotificationModalProps {
   isOpen: boolean;
   onClose: () => void;
   notifications: ProjectNotification[];
+  currentRole?: UserRole;
   onMarkAllAsRead: () => void;
   onMarkAsRead: (id: string) => void;
   onSelectNotification: (notif: ProjectNotification) => void;
+  onDeleteNotification?: (id: string) => void;
 }
 
 export const NotificationModal: React.FC<NotificationModalProps> = ({
   isOpen,
   onClose,
   notifications,
+  currentRole,
   onMarkAllAsRead,
   onMarkAsRead,
   onSelectNotification,
+  onDeleteNotification,
 }) => {
   if (!isOpen) return null;
 
@@ -109,13 +114,28 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
                 </div>
 
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-2">
                     <h4 className="text-xs font-semibold text-white truncate">
                       {item.title}
                     </h4>
-                    <span className="text-[10px] text-gray-500 whitespace-nowrap ml-2">
-                      {item.relativeTime}
-                    </span>
+                    <div className="flex items-center space-x-1.5 shrink-0">
+                      <span className="text-[10px] text-gray-500 whitespace-nowrap">
+                        {item.relativeTime}
+                      </span>
+                      {currentRole === 'pengawas' && onDeleteNotification && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onDeleteNotification(item.id);
+                          }}
+                          className="p-1 text-gray-500 hover:text-red-400 rounded"
+                          title="Hapus notifikasi"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
                   </div>
                   <p className="text-xs text-gray-400 mt-1 line-clamp-2">
                     {item.description}

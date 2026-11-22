@@ -1,13 +1,20 @@
-import React, { useState } from 'react';
-import { 
-  TrendingUp, 
-  Layers, 
-  CheckCircle2, 
-  Clock, 
-  Plus, 
-  Save 
+import React, { useState, useEffect } from 'react';
+import {
+  TrendingUp,
+  Layers,
+  CheckCircle2,
+  Clock,
+  Plus,
+  RefreshCw,
+  Trash2,
 } from 'lucide-react';
 import { WeeklyProgress, Milestone, UserRole } from '../types/project';
+import {
+  calculateMilestoneContribution,
+  calculateTotalProgress,
+  computeScheduledPlannedProgress,
+  getWeekDateRange,
+} from '../utils/progressSync';
 
 interface ProgressViewProps {
   weeklyRecords: WeeklyProgress[];
@@ -16,11 +23,13 @@ interface ProgressViewProps {
   plannedProgress: number;
   currentWeek: number;
   totalWeeks: number;
+  projectStartDate: string;
   currentRole: UserRole;
   activeSubTab?: 'mingguan' | 'tahapan';
   onChangeSubTab?: (tab: 'mingguan' | 'tahapan') => void;
   onUpdateMilestone: (id: string, newPercent: number, notes?: string) => void;
   onAddWeeklyRecord: (record: WeeklyProgress) => void;
+  onDeleteWeeklyRecord?: (week: number) => Promise<void> | void;
 }
 
 export const ProgressView: React.FC<ProgressViewProps> = ({
@@ -28,11 +37,14 @@ export const ProgressView: React.FC<ProgressViewProps> = ({
   milestones,
   currentProgress,
   plannedProgress,
+  totalWeeks,
+  projectStartDate,
   currentRole,
   activeSubTab,
   onChangeSubTab,
   onUpdateMilestone,
   onAddWeeklyRecord,
+  onDeleteWeeklyRecord,
 }) => {
   const [localSubTab, setLocalSubTab] = useState<'mingguan' | 'tahapan'>('mingguan');
   const subTab = activeSubTab ?? localSubTab;
@@ -41,12 +53,50 @@ export const ProgressView: React.FC<ProgressViewProps> = ({
   const [editPercent, setEditPercent] = useState<number>(0);
   const [editNotes, setEditNotes] = useState<string>('');
   const [showAddWeek, setShowAddWeek] = useState(false);
+  const [isManualWeekInput, setIsManualWeekInput] = useState(false);
   const [newActual, setNewActual] = useState(0);
   const [newPlan, setNewPlan] = useState(0);
   const [newHighlight, setNewHighlight] = useState('');
+  const [confirmDeleteWeek, setConfirmDeleteWeek] = useState<number | null>(null);
 
-  const deviation = currentProgress - plannedProgress;
-  const isAhead = deviation >= 0;
+  const effectiveTotalProgress =
+    milestones.length > 0 ? calculateTotalProgress(milestones) : currentProgress;
+
+  const lastRecord = weeklyRecords[weeklyRecords.length - 1];
+  const prevPlanTotal = lastRecord ? lastRecord.planCumulative : 0;
+  const prevActualTotal = lastRecord ? lastRecord.actualCumulative : 0;
+  const nextW =
+    weeklyRecords.length > 0
+      ? Math.max(...weeklyRecords.map((w) => w.week)) + 1
+      : 1;
+
+  const scheduledNextPlanCum = computeScheduledPlannedProgress(
+    milestones,
+    projectStartDate,
+    nextW,
+    totalWeeks
+  );
+  const autoActualDelta = Math.max(
+    0,
+    Number((effectiveTotalProgress - prevActualTotal).toFixed(1))
+  );
+  const autoPlanDelta = Math.max(
+    0,
+    Number((scheduledNextPlanCum - prevPlanTotal).toFixed(1))
+  );
+
+  const displayPlannedProgress =
+    weeklyRecords.length > 0
+      ? plannedProgress
+      : computeScheduledPlannedProgress(milestones, projectStartDate, 1, totalWeeks);
+  const deviation = Number((effectiveTotalProgress - displayPlannedProgress).toFixed(1));
+
+  useEffect(() => {
+    if (showAddWeek && !isManualWeekInput) {
+      setNewActual(autoActualDelta);
+      setNewPlan(autoPlanDelta);
+    }
+  }, [showAddWeek, isManualWeekInput, autoActualDelta, autoPlanDelta]);
 
   const handleStartEdit = (m: Milestone) => {
     setEditingMilestoneId(m.id);
@@ -59,35 +109,53 @@ export const ProgressView: React.FC<ProgressViewProps> = ({
     setEditingMilestoneId(null);
   };
 
-  const lastRecord = weeklyRecords[weeklyRecords.length - 1];
-  const prevPlanTotal = lastRecord ? lastRecord.planCumulative : 0;
-  const prevActualTotal = lastRecord ? lastRecord.actualCumulative : 0;
+  const handleToggleAddWeek = () => {
+    if (!showAddWeek) {
+      setIsManualWeekInput(false);
+      setNewActual(autoActualDelta);
+      setNewPlan(autoPlanDelta);
+    }
+    setShowAddWeek(!showAddWeek);
+  };
 
   const handleSaveWeek = (e: React.FormEvent) => {
     e.preventDefault();
-    const nextW = weeklyRecords.length + 1;
+    const weekDates = getWeekDateRange(projectStartDate, nextW);
     const clampedPlanCum = Math.min(100, Number((prevPlanTotal + newPlan).toFixed(1)));
-    const clampedActCum = Math.min(100, Number((prevActualTotal + newActual).toFixed(1)));
+    const clampedActCum = isManualWeekInput
+      ? Math.min(100, Number((prevActualTotal + newActual).toFixed(1)))
+      : effectiveTotalProgress;
+    const effectiveWeeklyActual = Number((clampedActCum - prevActualTotal).toFixed(1));
+    const weekDeviation = Number((clampedActCum - clampedPlanCum).toFixed(1));
+
+    const evaluationStatus: WeeklyProgress['evaluationStatus'] =
+      weekDeviation > 0
+        ? 'Lebih Cepat'
+        : weekDeviation === 0
+        ? 'Sesuai Jadwal'
+        : 'Perlu Perhatian';
 
     const newRecord: WeeklyProgress = {
       week: nextW,
-      periodLabel: `Minggu ke-${nextW}`,
-      startDate: '[belum diisi]',
-      endDate: '[belum diisi]',
+      periodLabel:
+        weekDates.startDate !== '[belum diisi]'
+          ? `Minggu ke-${nextW} (${weekDates.startDate} s/d ${weekDates.endDate})`
+          : `Minggu ke-${nextW}`,
+      startDate: weekDates.startDate,
+      endDate: weekDates.endDate,
       planWeekly: newPlan,
-      actualWeekly: newActual,
+      actualWeekly: Math.max(0, effectiveWeeklyActual),
       planCumulative: clampedPlanCum,
       actualCumulative: clampedActCum,
-      deviation: Number((clampedActCum - clampedPlanCum).toFixed(1)),
-      evaluationStatus: newActual >= newPlan ? 'Lebih Cepat' : 'Perlu Perhatian',
+      deviation: weekDeviation,
+      evaluationStatus,
       highlight: newHighlight || '[belum diisi]',
     };
 
     onAddWeeklyRecord(newRecord);
     setShowAddWeek(false);
+    setIsManualWeekInput(false);
     setNewHighlight('');
-    setNewActual(0);
-    setNewPlan(0);
   };
 
   return (
@@ -135,11 +203,13 @@ export const ProgressView: React.FC<ProgressViewProps> = ({
             <div className="grid grid-cols-2 gap-3 mt-3 pt-3 border-t border-[#3d3e3e]">
               <div>
                 <span className="text-[11px] text-gray-400 block">Total Progres Tahapan:</span>
-                <span className="text-2xl font-black text-white">{currentProgress}%</span>
+                <span className="text-2xl font-black text-white">{effectiveTotalProgress}%</span>
               </div>
               <div>
-                <span className="text-[11px] text-gray-400 block">Target Rencana Mingguan:</span>
-                <span className="text-2xl font-black text-gray-300">{plannedProgress}%</span>
+                <span className="text-[11px] text-gray-400 block">
+                  {weeklyRecords.length > 0 ? 'Target Rencana Mingguan:' : 'Target Rencana Minggu ke-1:'}
+                </span>
+                <span className="text-2xl font-black text-gray-300">{displayPlannedProgress}%</span>
               </div>
             </div>
 
@@ -177,11 +247,11 @@ export const ProgressView: React.FC<ProgressViewProps> = ({
           {currentRole === 'pengawas' && (
             <div className="flex justify-end">
               <button
-                onClick={() => setShowAddWeek(!showAddWeek)}
+                onClick={handleToggleAddWeek}
                 className="flex items-center space-x-1.5 bg-[#f95700] hover:bg-[#e04e00] text-white px-3.5 py-2 rounded-xl text-xs font-bold shadow-md shadow-[#f95700]/25 transition-all"
               >
                 <Plus className="w-4 h-4" />
-                <span>+ Input Rekap Mingguan</span>
+                <span>Input Rekap Mingguan</span>
               </button>
             </div>
           )}
@@ -190,39 +260,73 @@ export const ProgressView: React.FC<ProgressViewProps> = ({
           {showAddWeek && (
             <form onSubmit={handleSaveWeek} className="bg-[#282929] border border-[#444545] rounded-2xl p-4 text-xs space-y-3 animate-in fade-in">
               <div className="flex items-center justify-between">
-                <h4 className="font-bold text-white text-sm">Input Rekap Minggu Ke-{weeklyRecords.length + 1}</h4>
-                <span className="text-[11px] text-gray-400">
-                  Akumulasi sebelumnya: {prevActualTotal}%
-                </span>
+                <h4 className="font-bold text-white text-sm">Input Rekap Minggu Ke-{nextW}</h4>
+                <button
+                  type="button"
+                  onClick={() => setIsManualWeekInput((prev) => !prev)}
+                  className="text-[11px] text-[#f95700] hover:underline font-semibold flex items-center space-x-1"
+                >
+                  <RefreshCw className="w-3 h-3" />
+                  <span>{isManualWeekInput ? 'Sinkron Otomatis' : 'Sesuaikan Manual'}</span>
+                </button>
               </div>
-              <p className="text-[11px] text-gray-400">
-                Masukkan angka kenaikan progres khusus minggu ini saja (bukan total keseluruhan).
-              </p>
+
+              <div className="bg-[#202121] border border-[#3d3e3e] rounded-xl p-3 space-y-1 text-[11px] text-gray-300">
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Akumulasi minggu lalu:</span>
+                  <span className="font-bold text-white">{prevActualTotal}%</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Total Progres Tahapan saat ini:</span>
+                  <span className="font-bold text-emerald-400">{effectiveTotalProgress}%</span>
+                </div>
+                {!isManualWeekInput && autoActualDelta === 0 && (
+                  <div className="pt-1.5 mt-1.5 border-t border-[#2d2e2e] flex items-center justify-between gap-2">
+                    <span className="text-amber-300 text-[10px]">
+                      Tahapan belum bertambah sejak minggu lalu. Ubah % tahapan atau foto dulu agar otomatis terhitung.
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setSubTab('tahapan')}
+                      className="shrink-0 text-[10px] font-bold bg-[#f95700]/20 text-[#f95700] px-2 py-1 rounded-lg border border-[#f95700]/30"
+                    >
+                      Buka Tahapan
+                    </button>
+                  </div>
+                )}
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-gray-300 font-semibold mb-1">Kenaikan Minggu Ini (%)</label>
+                  <label className="block text-gray-300 font-semibold mb-1">
+                    Kenaikan Minggu Ini (%)
+                  </label>
                   <input
                     type="number"
                     step="0.1"
                     min="0"
                     max={Math.max(0, 100 - prevActualTotal)}
                     required
+                    disabled={!isManualWeekInput}
                     value={newActual}
                     onChange={(e) => setNewActual(Number(e.target.value))}
-                    className="w-full bg-[#202121] border border-[#3d3e3e] rounded-lg p-2 text-white"
+                    className="w-full bg-[#202121] border border-[#3d3e3e] rounded-lg p-2 text-white disabled:opacity-70"
                   />
                 </div>
                 <div>
-                  <label className="block text-gray-300 font-semibold mb-1">Target Rencana Minggu Ini (%)</label>
+                  <label className="block text-gray-300 font-semibold mb-1">
+                    Target Rencana Minggu Ini (%)
+                  </label>
                   <input
                     type="number"
                     step="0.1"
                     min="0"
                     max={Math.max(0, 100 - prevPlanTotal)}
                     required
+                    disabled={!isManualWeekInput}
                     value={newPlan}
                     onChange={(e) => setNewPlan(Number(e.target.value))}
-                    className="w-full bg-[#202121] border border-[#3d3e3e] rounded-lg p-2 text-white"
+                    className="w-full bg-[#202121] border border-[#3d3e3e] rounded-lg p-2 text-white disabled:opacity-70"
                   />
                 </div>
               </div>
@@ -249,9 +353,43 @@ export const ProgressView: React.FC<ProgressViewProps> = ({
             <div className="space-y-2.5">
               {[...weeklyRecords].reverse().map((w) => (
                 <div key={w.week} className="bg-[#282929] border border-[#444545] rounded-2xl p-4">
-                  <div className="flex items-center justify-between mb-1.5">
+                  <div className="flex items-center justify-between mb-1.5 gap-2">
                     <span className="text-sm font-bold text-white">Minggu ke-{w.week}</span>
-                    <span className="text-xs font-black text-amber-400">+{w.actualWeekly}%</span>
+                    <div className="flex items-center space-x-2">
+                      <span className="text-xs font-black text-amber-400">+{w.actualWeekly}%</span>
+                      {currentRole === 'pengawas' && onDeleteWeeklyRecord && (
+                        confirmDeleteWeek === w.week ? (
+                          <div className="flex items-center space-x-1.5">
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                await onDeleteWeeklyRecord(w.week);
+                                setConfirmDeleteWeek(null);
+                              }}
+                              className="text-[10px] font-bold bg-red-600 hover:bg-red-500 text-white px-2 py-0.5 rounded-lg"
+                            >
+                              Ya, Hapus
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setConfirmDeleteWeek(null)}
+                              className="text-[10px] text-gray-400 hover:text-white px-1"
+                            >
+                              Batal
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setConfirmDeleteWeek(w.week)}
+                            className="p-1 text-gray-400 hover:text-red-400 rounded-lg hover:bg-red-500/10"
+                            title="Hapus rekap mingguan"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )
+                      )}
+                    </div>
                   </div>
                   <span className="text-[11px] text-gray-400 block mb-2">{w.periodLabel}</span>
                   <p className="text-xs text-gray-200 bg-[#202121] p-2.5 rounded-xl border border-[#3d3e3e]">
@@ -290,7 +428,7 @@ export const ProgressView: React.FC<ProgressViewProps> = ({
                       <div>
                         <h4 className="text-xs sm:text-sm font-bold text-white">{m.name}</h4>
                         <p className="text-[11px] text-gray-400 mt-0.5">
-                          Bobot: {m.weight}% • Target: {m.targetEndDate || '[belum diisi]'}
+                          Bobot: {m.weight}% (Kontribusi: {calculateMilestoneContribution(m.weight, m.progressPercent)}%) • Target: {m.targetEndDate || '[belum diisi]'}
                         </p>
                         {m.supervisorNotes && (
                           <p className="text-[11px] text-gray-300 bg-[#202121] p-2 rounded-lg mt-2 border border-[#3d3e3e]">
@@ -323,15 +461,40 @@ export const ProgressView: React.FC<ProgressViewProps> = ({
                   </div>
 
                   {isEditing && (
-                    <div className="mt-3 pt-3 border-t border-[#3d3e3e] space-y-2 text-xs">
+                    <div className="mt-3 pt-3 border-t border-[#3d3e3e] space-y-2.5 text-xs">
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="text-gray-300 font-semibold">
+                          Progres Tahap: <strong className="text-[#f95700]">{editPercent}%</strong>
+                        </span>
+                        <span className="text-gray-400">
+                          Kontribusi: <strong className="text-white">{calculateMilestoneContribution(m.weight, editPercent)}%</strong> / {m.weight}%
+                        </span>
+                      </div>
                       <input
                         type="range"
                         min={0}
                         max={100}
+                        step={5}
                         value={editPercent}
                         onChange={(e) => setEditPercent(Number(e.target.value))}
                         className="w-full accent-[#f95700]"
                       />
+                      <div className="flex items-center justify-between gap-1.5">
+                        {[0, 25, 50, 75, 100].map((val) => (
+                          <button
+                            key={val}
+                            type="button"
+                            onClick={() => setEditPercent(val)}
+                            className={`flex-1 py-1 rounded-lg text-[10px] font-bold border transition-colors ${
+                              editPercent === val
+                                ? 'bg-[#f95700] border-[#f95700] text-white'
+                                : 'bg-[#202121] border-[#3d3e3e] text-gray-300 hover:text-white'
+                            }`}
+                          >
+                            {val}%
+                          </button>
+                        ))}
+                      </div>
                       <input
                         type="text"
                         placeholder="Catatan inspeksi..."

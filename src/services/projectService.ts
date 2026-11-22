@@ -1,5 +1,6 @@
 import {
   collection,
+  deleteDoc,
   doc,
   getDoc,
   onSnapshot,
@@ -539,3 +540,65 @@ export async function markAllNotificationsReadInDb(
     handleFirestoreError(error, OperationType.UPDATE, path);
   }
 }
+
+export async function deletePhotoInDb(projectId: string, photoId: string): Promise<void> {
+  const safeId = sanitizeId(photoId);
+  const path = `projects/${projectId}/photos/${safeId}`;
+  try {
+    await deleteDoc(doc(db, 'projects', projectId, 'photos', safeId));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, path);
+  }
+}
+
+export async function deleteWeeklyRecordInDb(
+  projectId: string,
+  weekNumber: number,
+  currentRecords: WeeklyProgress[]
+): Promise<void> {
+  const recordId = `w-${weekNumber}`;
+  const path = `projects/${projectId}/weeklyRecords/${recordId}`;
+  const remaining = currentRecords
+    .filter((w) => w.week !== weekNumber)
+    .sort((a, b) => a.week - b.week);
+  const latestRemaining = remaining[remaining.length - 1];
+
+  try {
+    const batch = writeBatch(db);
+    batch.delete(doc(db, 'projects', projectId, 'weeklyRecords', recordId));
+    batch.update(doc(db, 'projects', projectId), {
+      currentWeek: latestRemaining ? Math.max(0, Math.min(520, latestRemaining.week)) : 1,
+      plannedProgress: latestRemaining
+        ? Math.max(0, Math.min(100, latestRemaining.planCumulative))
+        : 0,
+      updatedAt: serverTimestamp(),
+    });
+    await batch.commit();
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, path);
+  }
+}
+
+export async function deleteMessageInDb(projectId: string, messageId: string): Promise<void> {
+  const safeId = sanitizeId(messageId);
+  const path = `projects/${projectId}/messages/${safeId}`;
+  try {
+    await deleteDoc(doc(db, 'projects', projectId, 'messages', safeId));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, path);
+  }
+}
+
+export async function deleteNotificationInDb(
+  projectId: string,
+  notificationId: string
+): Promise<void> {
+  const safeId = sanitizeId(notificationId);
+  const path = `projects/${projectId}/notifications/${safeId}`;
+  try {
+    await deleteDoc(doc(db, 'projects', projectId, 'notifications', safeId));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, path);
+  }
+}
+
