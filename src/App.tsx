@@ -26,8 +26,6 @@ import {
   deleteWeeklyRecordInDb,
   deleteMessageInDb,
   deleteNotificationInDb,
-  updatePhotoInDb,
-  updateWeeklyRecordInDb,
 } from './services/projectService';
 import { Header } from './components/Header';
 import { BottomNav, MainTab } from './components/BottomNav';
@@ -65,13 +63,11 @@ export default function App() {
   const [signedInEmail, setSignedInEmail] = useState<string | null>(null);
   const [isAuthorizedEditor, setIsAuthorizedEditor] = useState(false);
 
-  const isConsumerShareLink = useMemo(() => {
+  const activeRole: UserRole = isAuthorizedEditor ? 'pengawas' : 'klien';
+  const isSupervisorEntryUrl = useMemo(() => {
     const params = new URLSearchParams(window.location.search);
-    return params.get('view') === 'klien' || params.get('share') === '1';
+    return params.get('mode') === 'pengawas' || params.get('login') === '1';
   }, []);
-
-  const activeRole: UserRole =
-    isAuthorizedEditor && !isConsumerShareLink ? 'pengawas' : 'klien';
 
   const [project, setProject] = useState<Project>(INITIAL_PROJECTS[0]);
   const [notifications, setNotifications] = useState<ProjectNotification[]>(INITIAL_NOTIFICATIONS);
@@ -358,30 +354,6 @@ export default function App() {
     }
   };
 
-  const handleUpdatePhoto = async (
-    photoId: string,
-    updates: { title: string; description: string; phaseName: string }
-  ) => {
-    if (!isAuthorizedEditor) return;
-    try {
-      await updatePhotoInDb(project.id, photoId, updates);
-    } catch (err) {
-      setDbError(err instanceof Error ? err : new Error(String(err)));
-    }
-  };
-
-  const handleUpdateWeeklyRecord = async (
-    record: WeeklyProgress,
-    isLatestWeek: boolean
-  ) => {
-    if (!isAuthorizedEditor) return;
-    try {
-      await updateWeeklyRecordInDb(project.id, record, isLatestWeek);
-    } catch (err) {
-      setDbError(err instanceof Error ? err : new Error(String(err)));
-    }
-  };
-
   const handleGoogleLogin = async () => {
     const cred = await signInWithGoogle();
     if (cred.user && !cred.user.emailVerified) {
@@ -401,7 +373,7 @@ export default function App() {
         currentProject={project}
         activeRole={activeRole}
         signedInEmail={signedInEmail}
-        showLoginButton={!isConsumerShareLink}
+        showLoginButton={isSupervisorEntryUrl}
         notifications={effectiveNotifications}
         onOpenNotifications={() => setIsNotificationOpen(true)}
         onOpenLogin={() => setIsLoginModalOpen(true)}
@@ -462,7 +434,6 @@ export default function App() {
             onChangeSubTab={setProgressSubTab}
             onUpdateMilestone={handleUpdateMilestone}
             onAddWeeklyRecord={handleAddWeeklyRecord}
-            onUpdateWeeklyRecord={handleUpdateWeeklyRecord}
             onDeleteWeeklyRecord={handleDeleteWeeklyRecord}
           />
         )}
@@ -471,11 +442,9 @@ export default function App() {
         {activeTab === 'galeri' && (
           <PhotoGalleryTab
             photos={project.photos}
-            milestones={project.milestones}
             currentRole={activeRole}
             onOpenUploadModal={() => setIsUploadModalOpen(true)}
             onDeletePhoto={handleDeletePhoto}
-            onUpdatePhoto={handleUpdatePhoto}
           />
         )}
 

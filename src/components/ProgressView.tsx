@@ -7,8 +7,6 @@ import {
   Plus,
   RefreshCw,
   Trash2,
-  Pencil,
-  Check,
 } from 'lucide-react';
 import { WeeklyProgress, Milestone, UserRole } from '../types/project';
 import {
@@ -31,7 +29,6 @@ interface ProgressViewProps {
   onChangeSubTab?: (tab: 'mingguan' | 'tahapan') => void;
   onUpdateMilestone: (id: string, newPercent: number, notes?: string) => void;
   onAddWeeklyRecord: (record: WeeklyProgress) => void;
-  onUpdateWeeklyRecord?: (record: WeeklyProgress, isLatestWeek: boolean) => Promise<void> | void;
   onDeleteWeeklyRecord?: (week: number) => Promise<void> | void;
 }
 
@@ -47,7 +44,6 @@ export const ProgressView: React.FC<ProgressViewProps> = ({
   onChangeSubTab,
   onUpdateMilestone,
   onAddWeeklyRecord,
-  onUpdateWeeklyRecord,
   onDeleteWeeklyRecord,
 }) => {
   const [localSubTab, setLocalSubTab] = useState<'mingguan' | 'tahapan'>('mingguan');
@@ -62,12 +58,6 @@ export const ProgressView: React.FC<ProgressViewProps> = ({
   const [newPlan, setNewPlan] = useState(0);
   const [newHighlight, setNewHighlight] = useState('');
   const [confirmDeleteWeek, setConfirmDeleteWeek] = useState<number | null>(null);
-
-  const [editingWeekNum, setEditingWeekNum] = useState<number | null>(null);
-  const [editWeekActual, setEditWeekActual] = useState<number>(0);
-  const [editWeekPlan, setEditWeekPlan] = useState<number>(0);
-  const [editWeekHighlight, setEditWeekHighlight] = useState<string>('');
-  const [isSavingWeekEdit, setIsSavingWeekEdit] = useState(false);
 
   const effectiveTotalProgress =
     milestones.length > 0 ? calculateTotalProgress(milestones) : currentProgress;
@@ -361,185 +351,56 @@ export const ProgressView: React.FC<ProgressViewProps> = ({
           {/* List or Empty State */}
           {weeklyRecords.length > 0 ? (
             <div className="space-y-2.5">
-              {[...weeklyRecords].reverse().map((w) => {
-                const isEditingWeek = editingWeekNum === w.week;
-                const sortedIdx = weeklyRecords.findIndex((rec) => rec.week === w.week);
-                const prevWeek = sortedIdx > 0 ? weeklyRecords[sortedIdx - 1] : undefined;
-                const isLatestWeek = sortedIdx === weeklyRecords.length - 1;
-
-                return (
-                  <div key={w.week} className="bg-[#282929] border border-[#444545] rounded-2xl p-4">
-                    <div className="flex items-center justify-between mb-1.5 gap-2">
-                      <span className="text-sm font-bold text-white">Minggu ke-{w.week}</span>
+              {[...weeklyRecords].reverse().map((w) => (
+                <div key={w.week} className="bg-[#282929] border border-[#444545] rounded-2xl p-4">
+                  <div className="flex items-center justify-between mb-1.5 gap-2">
+                    <span className="text-sm font-bold text-white">Minggu ke-{w.week}</span>
+                    <div className="flex items-center space-x-2">
                       <span className="text-xs font-black text-amber-400">+{w.actualWeekly}%</span>
-                    </div>
-                    <span className="text-[11px] text-gray-400 block mb-2">{w.periodLabel}</span>
-
-                    {isEditingWeek ? (
-                      <div className="space-y-2.5 text-xs bg-[#202121] p-3 rounded-xl border border-[#3d3e3e]">
-                        <div className="grid grid-cols-2 gap-2.5">
-                          <div>
-                            <label className="block text-gray-300 font-semibold mb-1">
-                              Kenaikan Aktual (%)
-                            </label>
-                            <input
-                              type="number"
-                              step="0.1"
-                              min="0"
-                              max="100"
-                              value={editWeekActual}
-                              onChange={(e) => setEditWeekActual(Number(e.target.value))}
-                              className="w-full bg-[#282929] border border-[#3d3e3e] rounded-lg p-2 text-white"
-                            />
+                      {currentRole === 'pengawas' && onDeleteWeeklyRecord && (
+                        confirmDeleteWeek === w.week ? (
+                          <div className="flex items-center space-x-1.5">
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                await onDeleteWeeklyRecord(w.week);
+                                setConfirmDeleteWeek(null);
+                              }}
+                              className="text-[10px] font-bold bg-red-600 hover:bg-red-500 text-white px-2 py-0.5 rounded-lg"
+                            >
+                              Ya, Hapus
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setConfirmDeleteWeek(null)}
+                              className="text-[10px] text-gray-400 hover:text-white px-1"
+                            >
+                              Batal
+                            </button>
                           </div>
-                          <div>
-                            <label className="block text-gray-300 font-semibold mb-1">
-                              Target Rencana (%)
-                            </label>
-                            <input
-                              type="number"
-                              step="0.1"
-                              min="0"
-                              max="100"
-                              value={editWeekPlan}
-                              onChange={(e) => setEditWeekPlan(Number(e.target.value))}
-                              className="w-full bg-[#282929] border border-[#3d3e3e] rounded-lg p-2 text-white"
-                            />
-                          </div>
-                        </div>
-                        <div>
-                          <label className="block text-gray-300 font-semibold mb-1">
-                            Uraian Pekerjaan
-                          </label>
-                          <input
-                            type="text"
-                            value={editWeekHighlight}
-                            onChange={(e) => setEditWeekHighlight(e.target.value)}
-                            className="w-full bg-[#282929] border border-[#3d3e3e] rounded-lg p-2 text-white"
-                          />
-                        </div>
-                        <div className="flex justify-end space-x-2">
+                        ) : (
                           <button
                             type="button"
-                            onClick={() => setEditingWeekNum(null)}
-                            className="px-3 py-1 text-gray-400 hover:text-white"
+                            onClick={() => setConfirmDeleteWeek(w.week)}
+                            className="p-1 text-gray-400 hover:text-red-400 rounded-lg hover:bg-red-500/10"
+                            title="Hapus rekap mingguan"
                           >
-                            Batal
+                            <Trash2 className="w-3.5 h-3.5" />
                           </button>
-                          <button
-                            type="button"
-                            disabled={isSavingWeekEdit}
-                            onClick={async () => {
-                              if (!onUpdateWeeklyRecord) return;
-                              setIsSavingWeekEdit(true);
-                              try {
-                                const baseActual = prevWeek ? prevWeek.actualCumulative : 0;
-                                const basePlan = prevWeek ? prevWeek.planCumulative : 0;
-                                const nextActualCum = Math.min(100, Number((baseActual + editWeekActual).toFixed(1)));
-                                const nextPlanCum = Math.min(100, Number((basePlan + editWeekPlan).toFixed(1)));
-                                const nextDev = Number((nextActualCum - nextPlanCum).toFixed(1));
-                                const nextEval: WeeklyProgress['evaluationStatus'] =
-                                  nextDev > 0
-                                    ? 'Lebih Cepat'
-                                    : nextDev === 0
-                                    ? 'Sesuai Jadwal'
-                                    : 'Perlu Perhatian';
-                                await onUpdateWeeklyRecord(
-                                  {
-                                    ...w,
-                                    actualWeekly: Math.max(0, editWeekActual),
-                                    planWeekly: Math.max(0, editWeekPlan),
-                                    actualCumulative: nextActualCum,
-                                    planCumulative: nextPlanCum,
-                                    deviation: nextDev,
-                                    evaluationStatus: nextEval,
-                                    highlight: editWeekHighlight.trim() || '[belum diisi]',
-                                  },
-                                  isLatestWeek
-                                );
-                                setEditingWeekNum(null);
-                              } finally {
-                                setIsSavingWeekEdit(false);
-                              }
-                            }}
-                            className="flex items-center space-x-1 bg-[#f95700] text-white px-3 py-1 rounded-lg font-bold"
-                          >
-                            <Check className="w-3.5 h-3.5" />
-                            <span>{isSavingWeekEdit ? 'Menyimpan...' : 'Simpan Koreksi'}</span>
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <p className="text-xs text-gray-200 bg-[#202121] p-2.5 rounded-xl border border-[#3d3e3e]">
-                        {w.highlight}
-                      </p>
-                    )}
-
-                    <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 text-[11px] text-gray-400 pt-2 border-t border-[#3d3e3e]">
-                      <div className="flex items-center space-x-3">
-                        <span>Total Progres: <strong className="text-white">{w.actualCumulative}%</strong></span>
-                        <span className="text-emerald-400 font-semibold">{w.evaluationStatus}</span>
-                      </div>
-
-                      {currentRole === 'pengawas' && !isEditingWeek && (
-                        <div className="flex items-center space-x-1.5">
-                          {confirmDeleteWeek === w.week ? (
-                            <>
-                              <button
-                                type="button"
-                                onClick={async () => {
-                                  if (!onDeleteWeeklyRecord) return;
-                                  await onDeleteWeeklyRecord(w.week);
-                                  setConfirmDeleteWeek(null);
-                                }}
-                                className="text-[10px] font-bold bg-red-600 hover:bg-red-500 text-white px-2.5 py-1 rounded-lg"
-                              >
-                                Ya, Hapus
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setConfirmDeleteWeek(null)}
-                                className="text-[10px] text-gray-400 hover:text-white px-1.5 py-1"
-                              >
-                                Batal
-                              </button>
-                            </>
-                          ) : (
-                            <>
-                              {onUpdateWeeklyRecord && (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setConfirmDeleteWeek(null);
-                                    setEditingWeekNum(w.week);
-                                    setEditWeekActual(w.actualWeekly);
-                                    setEditWeekPlan(w.planWeekly);
-                                    setEditWeekHighlight(w.highlight);
-                                  }}
-                                  className="flex items-center space-x-1 text-[10px] font-semibold text-gray-200 hover:text-white bg-[#202121] border border-[#3d3e3e] px-2.5 py-1 rounded-lg"
-                                >
-                                  <Pencil className="w-3 h-3 text-[#f95700]" />
-                                  <span>Koreksi</span>
-                                </button>
-                              )}
-                              {onDeleteWeeklyRecord && (
-                                <button
-                                  type="button"
-                                  onClick={() => setConfirmDeleteWeek(w.week)}
-                                  className="flex items-center space-x-1 text-[10px] font-semibold text-red-400 hover:text-red-300 bg-red-500/10 border border-red-500/20 px-2.5 py-1 rounded-lg"
-                                >
-                                  <Trash2 className="w-3 h-3" />
-                                  <span>Hapus</span>
-                                </button>
-                              )}
-                            </>
-                          )}
-                        </div>
+                        )
                       )}
                     </div>
                   </div>
-                );
-              })}
+                  <span className="text-[11px] text-gray-400 block mb-2">{w.periodLabel}</span>
+                  <p className="text-xs text-gray-200 bg-[#202121] p-2.5 rounded-xl border border-[#3d3e3e]">
+                    {w.highlight}
+                  </p>
+                  <div className="mt-2.5 flex items-center justify-between text-[11px] text-gray-400 pt-2 border-t border-[#3d3e3e]">
+                    <span>Total Progres: <strong className="text-white">{w.actualCumulative}%</strong></span>
+                    <span className="text-emerald-400 font-semibold">{w.evaluationStatus}</span>
+                  </div>
+                </div>
+              ))}
             </div>
           ) : (
             <div className="bg-[#282929] border border-[#444545] rounded-2xl p-8 text-center text-xs text-gray-400">

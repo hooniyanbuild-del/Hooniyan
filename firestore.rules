@@ -274,18 +274,7 @@ service cloud.firestore {
           && incoming().id == recordId
           && incoming().createdAt == request.time
           && parentProjectExistsAfter(projectId);
-        allow update: if isValidId(projectId)
-          && isValidId(recordId)
-          && isVerifiedUser()
-          && isValidWeeklyRecord(incoming(), projectId)
-          && incoming().id == existing().id
-          && incoming().projectId == existing().projectId
-          && incoming().week == existing().week
-          && incoming().createdAt == existing().createdAt
-          && incoming().diff(existing()).affectedKeys().hasOnly([
-            'planCumulative', 'actualCumulative', 'planWeekly', 'actualWeekly',
-            'deviation', 'evaluationStatus', 'highlight'
-          ]);
+        allow update: if false;
         allow delete: if isValidId(projectId)
           && isValidId(recordId)
           && isVerifiedUser()
@@ -302,17 +291,7 @@ service cloud.firestore {
           && incoming().id == photoId
           && incoming().createdAt == request.time
           && parentProjectExistsAfter(projectId);
-        allow update: if isValidId(projectId)
-          && isValidId(photoId)
-          && isVerifiedUser()
-          && isValidPhoto(incoming(), projectId)
-          && incoming().id == existing().id
-          && incoming().projectId == existing().projectId
-          && incoming().imageUrl == existing().imageUrl
-          && incoming().createdAt == existing().createdAt
-          && incoming().diff(existing()).affectedKeys().hasOnly([
-            'title', 'description', 'phaseName', 'category'
-          ]);
+        allow update: if false;
         allow delete: if isValidId(projectId)
           && isValidId(photoId)
           && isVerifiedUser()
