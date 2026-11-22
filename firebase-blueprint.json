@@ -1,0 +1,373 @@
+{
+  "entities": {
+    "Project": {
+      "title": "Project",
+      "description": "Core construction project metadata and aggregate progress state.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "contractNumber": { "type": "string", "maxLength": 100 },
+        "title": { "type": "string", "maxLength": 200 },
+        "clientName": { "type": "string", "maxLength": 120 },
+        "clientPhone": { "type": "string", "maxLength": 60 },
+        "clientEmail": { "type": "string", "maxLength": 120 },
+        "location": { "type": "string", "maxLength": 300 },
+        "city": { "type": "string", "maxLength": 100 },
+        "totalBudgetFormatted": { "type": "string", "maxLength": 60 },
+        "landArea": { "type": "string", "maxLength": 40 },
+        "buildingArea": { "type": "string", "maxLength": 40 },
+        "startDate": { "type": "string", "maxLength": 40 },
+        "targetCompletionDate": { "type": "string", "maxLength": 40 },
+        "totalWeeks": { "type": "number" },
+        "currentWeek": { "type": "number" },
+        "supervisorName": { "type": "string", "maxLength": 120 },
+        "supervisorTitle": { "type": "string", "maxLength": 120 },
+        "supervisorPhone": { "type": "string", "maxLength": 60 },
+        "projectManager": { "type": "string", "maxLength": 120 },
+        "currentProgress": { "type": "number" },
+        "plannedProgress": { "type": "number" },
+        "status": {
+          "type": "string",
+          "enum": ["On Track", "Ahead", "Delayed"]
+        },
+        "unreadNotificationsCount": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "id",
+        "contractNumber",
+        "title",
+        "clientName",
+        "clientPhone",
+        "clientEmail",
+        "location",
+        "city",
+        "totalBudgetFormatted",
+        "landArea",
+        "buildingArea",
+        "startDate",
+        "targetCompletionDate",
+        "totalWeeks",
+        "currentWeek",
+        "supervisorName",
+        "supervisorTitle",
+        "supervisorPhone",
+        "projectManager",
+        "currentProgress",
+        "plannedProgress",
+        "status",
+        "unreadNotificationsCount",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "Milestone": {
+      "title": "Milestone",
+      "description": "Weighted construction work stage within a project.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "projectId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "order": { "type": "number" },
+        "name": { "type": "string", "maxLength": 160 },
+        "category": {
+          "type": "string",
+          "enum": ["persiapan", "struktur", "arsitektur", "mep", "finishing"]
+        },
+        "weight": { "type": "number" },
+        "startDate": { "type": "string", "maxLength": 40 },
+        "targetEndDate": { "type": "string", "maxLength": 40 },
+        "actualEndDate": { "type": "string", "maxLength": 40 },
+        "status": {
+          "type": "string",
+          "enum": ["selesai", "dalam_pengerjaan", "tertunda", "belum_mulai"]
+        },
+        "progressPercent": { "type": "number" },
+        "supervisorNotes": { "type": "string", "maxLength": 500 },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "id",
+        "projectId",
+        "order",
+        "name",
+        "category",
+        "weight",
+        "startDate",
+        "targetEndDate",
+        "status",
+        "progressPercent",
+        "supervisorNotes",
+        "updatedAt"
+      ]
+    },
+    "WeeklyProgress": {
+      "title": "WeeklyProgress",
+      "description": "Weekly cumulative and incremental progress record.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "projectId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "week": { "type": "number" },
+        "periodLabel": { "type": "string", "maxLength": 100 },
+        "startDate": { "type": "string", "maxLength": 40 },
+        "endDate": { "type": "string", "maxLength": 40 },
+        "planCumulative": { "type": "number" },
+        "actualCumulative": { "type": "number" },
+        "planWeekly": { "type": "number" },
+        "actualWeekly": { "type": "number" },
+        "deviation": { "type": "number" },
+        "evaluationStatus": {
+          "type": "string",
+          "enum": ["Sesuai Jadwal", "Lebih Cepat", "Perlu Perhatian", "Kritis"]
+        },
+        "highlight": { "type": "string", "maxLength": 500 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "id",
+        "projectId",
+        "week",
+        "periodLabel",
+        "startDate",
+        "endDate",
+        "planCumulative",
+        "actualCumulative",
+        "planWeekly",
+        "actualWeekly",
+        "deviation",
+        "evaluationStatus",
+        "highlight",
+        "createdAt"
+      ]
+    },
+    "SitePhoto": {
+      "title": "SitePhoto",
+      "description": "Compressed site progress photo and optional before photo.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "projectId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "title": { "type": "string", "maxLength": 160 },
+        "description": { "type": "string", "maxLength": 500 },
+        "imageUrl": { "type": "string", "maxLength": 140000 },
+        "beforeImageUrl": { "type": "string", "maxLength": 140000 },
+        "date": { "type": "string", "maxLength": 60 },
+        "time": { "type": "string", "maxLength": 40 },
+        "phaseName": { "type": "string", "maxLength": 160 },
+        "category": { "type": "string", "maxLength": 160 },
+        "supervisorName": { "type": "string", "maxLength": 120 },
+        "weather": { "type": "string", "maxLength": 60 },
+        "isMilestoneProof": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "id",
+        "projectId",
+        "title",
+        "description",
+        "imageUrl",
+        "date",
+        "time",
+        "phaseName",
+        "category",
+        "supervisorName",
+        "weather",
+        "isMilestoneProof",
+        "createdAt"
+      ]
+    },
+    "ChatMessage": {
+      "title": "ChatMessage",
+      "description": "Real-time communication message between client and supervisor.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "projectId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "senderId": { "type": "string", "maxLength": 128 },
+        "senderName": { "type": "string", "maxLength": 120 },
+        "senderRole": {
+          "type": "string",
+          "enum": ["klien", "pengawas", "manajemen"]
+        },
+        "text": { "type": "string", "maxLength": 2000 },
+        "timestamp": { "type": "string", "maxLength": 60 },
+        "timeString": { "type": "string", "maxLength": 40 },
+        "read": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "id",
+        "projectId",
+        "senderId",
+        "senderName",
+        "senderRole",
+        "text",
+        "timestamp",
+        "timeString",
+        "read",
+        "createdAt"
+      ]
+    },
+    "PaymentTerm": {
+      "title": "PaymentTerm",
+      "description": "SPK Pasal 6 payment term schedule item.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "projectId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "order": { "type": "number" },
+        "termin": { "type": "string", "maxLength": 100 },
+        "percentage": { "type": "number" },
+        "nominalFormatted": { "type": "string", "maxLength": 60 },
+        "scope": { "type": "string", "maxLength": 300 },
+        "targetBobot": { "type": "number" },
+        "status": {
+          "type": "string",
+          "enum": ["Lunas", "Menunggu Progres", "Belum Jatuh Tempo"]
+        }
+      },
+      "required": [
+        "id",
+        "projectId",
+        "order",
+        "termin",
+        "percentage",
+        "nominalFormatted",
+        "scope",
+        "targetBobot",
+        "status"
+      ]
+    },
+    "ProjectNotification": {
+      "title": "ProjectNotification",
+      "description": "Automatic project update notifications.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "projectId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "title": { "type": "string", "maxLength": 160 },
+        "description": { "type": "string", "maxLength": 500 },
+        "type": {
+          "type": "string",
+          "enum": ["foto", "progres", "milestone", "chat", "peringatan"]
+        },
+        "timestamp": { "type": "string", "maxLength": 60 },
+        "relativeTime": { "type": "string", "maxLength": 60 },
+        "read": { "type": "boolean" },
+        "linkTab": {
+          "type": "string",
+          "enum": ["rekap", "timeline", "galeri", "harian", "chat"]
+        },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "id",
+        "projectId",
+        "title",
+        "description",
+        "type",
+        "timestamp",
+        "relativeTime",
+        "read",
+        "createdAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/projects/{projectId}": {
+      "schema": { "$ref": "#/entities/Project" },
+      "description": "Primary construction project document."
+    },
+    "/projects/{projectId}/milestones/{milestoneId}": {
+      "schema": { "$ref": "#/entities/Milestone" },
+      "description": "Project construction milestones with progress percentage and notes."
+    },
+    "/projects/{projectId}/weeklyRecords/{recordId}": {
+      "schema": { "$ref": "#/entities/WeeklyProgress" },
+      "description": "Weekly progress recap records."
+    },
+    "/projects/{projectId}/photos/{photoId}": {
+      "schema": { "$ref": "#/entities/SitePhoto" },
+      "description": "Compressed construction site progress photos."
+    },
+    "/projects/{projectId}/messages/{messageId}": {
+      "schema": { "$ref": "#/entities/ChatMessage" },
+      "description": "Live chat messages between client and supervisor."
+    },
+    "/projects/{projectId}/paymentTerms/{termId}": {
+      "schema": { "$ref": "#/entities/PaymentTerm" },
+      "description": "SPK payment terms schedule."
+    },
+    "/projects/{projectId}/notifications/{notificationId}": {
+      "schema": { "$ref": "#/entities/ProjectNotification" },
+      "description": "Project event notifications."
+    }
+  }
+}

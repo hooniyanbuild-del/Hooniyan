@@ -1,0 +1,358 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global safety net: default deny everything
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Shared primitives
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+    function incoming() {
+      return request.resource.data;
+    }
+    function existing() {
+      return resource.data;
+    }
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true && request.auth.token.email is string;
+    }
+    function parentProjectExistsAfter(projectId) {
+      return existsAfter(/databases/$(database)/documents/projects/$(projectId));
+    }
+
+    // Entity validators
+    function isValidProject(data) {
+      return data.keys().hasAll([
+          'id', 'contractNumber', 'title', 'clientName', 'clientPhone', 'clientEmail',
+          'location', 'city', 'totalBudgetFormatted', 'landArea', 'buildingArea',
+          'startDate', 'targetCompletionDate', 'totalWeeks', 'currentWeek',
+          'supervisorName', 'supervisorTitle', 'supervisorPhone', 'projectManager',
+          'currentProgress', 'plannedProgress', 'status', 'unreadNotificationsCount',
+          'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'contractNumber', 'title', 'clientName', 'clientPhone', 'clientEmail',
+          'location', 'city', 'totalBudgetFormatted', 'landArea', 'buildingArea',
+          'startDate', 'targetCompletionDate', 'totalWeeks', 'currentWeek',
+          'supervisorName', 'supervisorTitle', 'supervisorPhone', 'projectManager',
+          'currentProgress', 'plannedProgress', 'status', 'unreadNotificationsCount',
+          'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.id)
+        && data.contractNumber is string && data.contractNumber.size() <= 100
+        && data.title is string && data.title.size() <= 200
+        && data.clientName is string && data.clientName.size() <= 120
+        && data.clientPhone is string && data.clientPhone.size() <= 60
+        && data.clientEmail is string && data.clientEmail.size() <= 120
+        && data.location is string && data.location.size() <= 300
+        && data.city is string && data.city.size() <= 100
+        && data.totalBudgetFormatted is string && data.totalBudgetFormatted.size() <= 60
+        && data.landArea is string && data.landArea.size() <= 40
+        && data.buildingArea is string && data.buildingArea.size() <= 40
+        && data.startDate is string && data.startDate.size() <= 40
+        && data.targetCompletionDate is string && data.targetCompletionDate.size() <= 40
+        && data.totalWeeks is number && data.totalWeeks >= 1 && data.totalWeeks <= 520
+        && data.currentWeek is number && data.currentWeek >= 0 && data.currentWeek <= 520
+        && data.supervisorName is string && data.supervisorName.size() <= 120
+        && data.supervisorTitle is string && data.supervisorTitle.size() <= 120
+        && data.supervisorPhone is string && data.supervisorPhone.size() <= 60
+        && data.projectManager is string && data.projectManager.size() <= 120
+        && data.currentProgress is number && data.currentProgress >= 0 && data.currentProgress <= 100
+        && data.plannedProgress is number && data.plannedProgress >= 0 && data.plannedProgress <= 100
+        && data.status in ['On Track', 'Ahead', 'Delayed']
+        && data.unreadNotificationsCount is number && data.unreadNotificationsCount >= 0 && data.unreadNotificationsCount <= 10000
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidMilestone(data, projectId) {
+      return data.keys().hasAll([
+          'id', 'projectId', 'order', 'name', 'category', 'weight',
+          'startDate', 'targetEndDate', 'status', 'progressPercent',
+          'supervisorNotes', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'projectId', 'order', 'name', 'category', 'weight',
+          'startDate', 'targetEndDate', 'actualEndDate', 'status', 'progressPercent',
+          'supervisorNotes', 'updatedAt'
+        ])
+        && isValidId(data.id)
+        && data.projectId == projectId
+        && data.order is number && data.order >= 0 && data.order <= 100
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 160
+        && data.category in ['persiapan', 'struktur', 'arsitektur', 'mep', 'finishing']
+        && data.weight is number && data.weight >= 0 && data.weight <= 100
+        && data.startDate is string && data.startDate.size() <= 40
+        && data.targetEndDate is string && data.targetEndDate.size() <= 40
+        && (!('actualEndDate' in data) || (data.actualEndDate is string && data.actualEndDate.size() <= 40))
+        && data.status in ['selesai', 'dalam_pengerjaan', 'tertunda', 'belum_mulai']
+        && data.progressPercent is number && data.progressPercent >= 0 && data.progressPercent <= 100
+        && data.supervisorNotes is string && data.supervisorNotes.size() <= 500
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidWeeklyRecord(data, projectId) {
+      return data.keys().hasAll([
+          'id', 'projectId', 'week', 'periodLabel', 'startDate', 'endDate',
+          'planCumulative', 'actualCumulative', 'planWeekly', 'actualWeekly',
+          'deviation', 'evaluationStatus', 'highlight', 'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'projectId', 'week', 'periodLabel', 'startDate', 'endDate',
+          'planCumulative', 'actualCumulative', 'planWeekly', 'actualWeekly',
+          'deviation', 'evaluationStatus', 'highlight', 'createdAt'
+        ])
+        && isValidId(data.id)
+        && data.projectId == projectId
+        && data.week is number && data.week >= 1 && data.week <= 520
+        && data.periodLabel is string && data.periodLabel.size() <= 100
+        && data.startDate is string && data.startDate.size() <= 40
+        && data.endDate is string && data.endDate.size() <= 40
+        && data.planCumulative is number && data.planCumulative >= 0 && data.planCumulative <= 100
+        && data.actualCumulative is number && data.actualCumulative >= 0 && data.actualCumulative <= 100
+        && data.planWeekly is number && data.planWeekly >= 0 && data.planWeekly <= 100
+        && data.actualWeekly is number && data.actualWeekly >= 0 && data.actualWeekly <= 100
+        && data.deviation is number && data.deviation >= -100 && data.deviation <= 100
+        && data.evaluationStatus in ['Sesuai Jadwal', 'Lebih Cepat', 'Perlu Perhatian', 'Kritis']
+        && data.highlight is string && data.highlight.size() <= 500
+        && data.createdAt is timestamp;
+    }
+
+    function isValidPhoto(data, projectId) {
+      return data.keys().hasAll([
+          'id', 'projectId', 'title', 'description', 'imageUrl',
+          'date', 'time', 'phaseName', 'category', 'supervisorName',
+          'weather', 'isMilestoneProof', 'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'projectId', 'title', 'description', 'imageUrl', 'beforeImageUrl',
+          'date', 'time', 'phaseName', 'category', 'supervisorName',
+          'weather', 'isMilestoneProof', 'createdAt'
+        ])
+        && isValidId(data.id)
+        && data.projectId == projectId
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 160
+        && data.description is string && data.description.size() <= 500
+        && data.imageUrl is string && data.imageUrl.size() >= 1 && data.imageUrl.size() <= 140000
+        && (!('beforeImageUrl' in data) || (data.beforeImageUrl is string && data.beforeImageUrl.size() <= 140000))
+        && data.date is string && data.date.size() <= 60
+        && data.time is string && data.time.size() <= 40
+        && data.phaseName is string && data.phaseName.size() <= 160
+        && data.category is string && data.category.size() <= 160
+        && data.supervisorName is string && data.supervisorName.size() <= 120
+        && data.weather is string && data.weather.size() <= 60
+        && data.isMilestoneProof is bool
+        && data.createdAt is timestamp;
+    }
+
+    function isValidMessage(data, projectId) {
+      return data.keys().hasAll([
+          'id', 'projectId', 'senderId', 'senderName', 'senderRole',
+          'text', 'timestamp', 'timeString', 'read', 'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'projectId', 'senderId', 'senderName', 'senderRole',
+          'text', 'timestamp', 'timeString', 'read', 'createdAt'
+        ])
+        && isValidId(data.id)
+        && data.projectId == projectId
+        && data.senderId is string && data.senderId.size() >= 1 && data.senderId.size() <= 128
+        && data.senderName is string && data.senderName.size() >= 1 && data.senderName.size() <= 120
+        && data.senderRole in ['klien', 'pengawas']
+        && data.text is string && data.text.size() >= 1 && data.text.size() <= 2000
+        && data.timestamp is string && data.timestamp.size() <= 60
+        && data.timeString is string && data.timeString.size() <= 40
+        && data.read is bool
+        && data.createdAt is timestamp;
+    }
+
+    function isValidPaymentTerm(data, projectId) {
+      return data.keys().hasAll([
+          'id', 'projectId', 'order', 'termin', 'percentage',
+          'nominalFormatted', 'scope', 'targetBobot', 'status'
+        ])
+        && data.keys().hasOnly([
+          'id', 'projectId', 'order', 'termin', 'percentage',
+          'nominalFormatted', 'scope', 'targetBobot', 'status'
+        ])
+        && isValidId(data.id)
+        && data.projectId == projectId
+        && data.order is number && data.order >= 0 && data.order <= 50
+        && data.termin is string && data.termin.size() >= 1 && data.termin.size() <= 100
+        && data.percentage is number && data.percentage >= 0 && data.percentage <= 100
+        && data.nominalFormatted is string && data.nominalFormatted.size() <= 60
+        && data.scope is string && data.scope.size() <= 300
+        && data.targetBobot is number && data.targetBobot >= 0 && data.targetBobot <= 100
+        && data.status in ['Lunas', 'Menunggu Progres', 'Belum Jatuh Tempo'];
+    }
+
+    function isValidNotification(data, projectId) {
+      return data.keys().hasAll([
+          'id', 'projectId', 'title', 'description', 'type',
+          'timestamp', 'relativeTime', 'read', 'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'projectId', 'title', 'description', 'type',
+          'timestamp', 'relativeTime', 'read', 'linkTab', 'createdAt'
+        ])
+        && isValidId(data.id)
+        && data.projectId == projectId
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 160
+        && data.description is string && data.description.size() <= 500
+        && data.type in ['foto', 'progres', 'milestone', 'chat', 'peringatan']
+        && data.timestamp is string && data.timestamp.size() <= 60
+        && data.relativeTime is string && data.relativeTime.size() <= 60
+        && data.read is bool
+        && (!('linkTab' in data) || data.linkTab in ['rekap', 'timeline', 'galeri', 'harian', 'chat'])
+        && data.createdAt is timestamp;
+    }
+
+    // Connection test helper document
+    match /test/{docId} {
+      allow get: if docId == 'connection';
+      allow list, write: if false;
+    }
+
+    // Project root document (View-Only readable via shared link; writable by any verified logged-in Pengawas)
+    match /projects/{projectId} {
+      allow get: if isValidId(projectId);
+      allow list: if resource.data.id is string;
+      allow create: if isValidId(projectId)
+        && isVerifiedUser()
+        && isValidProject(incoming())
+        && incoming().id == projectId
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(projectId)
+        && isVerifiedUser()
+        && isValidProject(incoming())
+        && incoming().id == existing().id
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          incoming().diff(existing()).affectedKeys().hasOnly(['currentProgress', 'updatedAt']) ||
+          incoming().diff(existing()).affectedKeys().hasOnly(['currentWeek', 'plannedProgress', 'updatedAt']) ||
+          incoming().diff(existing()).affectedKeys().hasOnly(['unreadNotificationsCount', 'updatedAt']) ||
+          incoming().diff(existing()).affectedKeys().hasOnly(['clientName', 'updatedAt'])
+        );
+      allow delete: if false;
+
+      match /milestones/{milestoneId} {
+        allow get: if isValidId(projectId) && isValidId(milestoneId);
+        allow list: if resource.data.projectId == projectId;
+        allow create: if isValidId(projectId)
+          && isValidId(milestoneId)
+          && isVerifiedUser()
+          && isValidMilestone(incoming(), projectId)
+          && incoming().id == milestoneId
+          && incoming().updatedAt == request.time
+          && parentProjectExistsAfter(projectId);
+        allow update: if isValidId(projectId)
+          && isValidId(milestoneId)
+          && isVerifiedUser()
+          && isValidMilestone(incoming(), projectId)
+          && incoming().id == existing().id
+          && incoming().projectId == existing().projectId
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly(['progressPercent', 'status', 'supervisorNotes', 'updatedAt']);
+        allow delete: if false;
+      }
+
+      match /weeklyRecords/{recordId} {
+        allow get: if isValidId(projectId) && isValidId(recordId);
+        allow list: if resource.data.projectId == projectId;
+        allow create: if isValidId(projectId)
+          && isValidId(recordId)
+          && isVerifiedUser()
+          && isValidWeeklyRecord(incoming(), projectId)
+          && incoming().id == recordId
+          && incoming().createdAt == request.time
+          && parentProjectExistsAfter(projectId);
+        allow update, delete: if false;
+      }
+
+      match /photos/{photoId} {
+        allow get: if isValidId(projectId) && isValidId(photoId);
+        allow list: if resource.data.projectId == projectId;
+        allow create: if isValidId(projectId)
+          && isValidId(photoId)
+          && isVerifiedUser()
+          && isValidPhoto(incoming(), projectId)
+          && incoming().id == photoId
+          && incoming().createdAt == request.time
+          && parentProjectExistsAfter(projectId);
+        allow update, delete: if false;
+      }
+
+      match /messages/{messageId} {
+        allow get: if isValidId(projectId) && isValidId(messageId);
+        allow list: if resource.data.projectId == projectId;
+        allow create: if isValidId(projectId)
+          && isValidId(messageId)
+          && isValidMessage(incoming(), projectId)
+          && incoming().id == messageId
+          && incoming().createdAt == request.time
+          && parentProjectExistsAfter(projectId)
+          && (
+            incoming().senderRole == 'klien' ||
+            (incoming().senderRole == 'pengawas' && isVerifiedUser())
+          );
+        allow update: if isValidId(projectId)
+          && isValidId(messageId)
+          && isVerifiedUser()
+          && isValidMessage(incoming(), projectId)
+          && incoming().id == existing().id
+          && incoming().projectId == existing().projectId
+          && incoming().createdAt == existing().createdAt
+          && incoming().diff(existing()).affectedKeys().hasOnly(['read']);
+        allow delete: if false;
+      }
+
+      match /paymentTerms/{termId} {
+        allow get: if isValidId(projectId) && isValidId(termId);
+        allow list: if resource.data.projectId == projectId;
+        allow create: if isValidId(projectId)
+          && isValidId(termId)
+          && isVerifiedUser()
+          && isValidPaymentTerm(incoming(), projectId)
+          && incoming().id == termId
+          && parentProjectExistsAfter(projectId);
+        allow update: if isValidId(projectId)
+          && isValidId(termId)
+          && isVerifiedUser()
+          && isValidPaymentTerm(incoming(), projectId)
+          && incoming().id == existing().id
+          && incoming().projectId == existing().projectId
+          && incoming().diff(existing()).affectedKeys().hasOnly(['status']);
+        allow delete: if false;
+      }
+
+      match /notifications/{notificationId} {
+        allow get: if isValidId(projectId) && isValidId(notificationId);
+        allow list: if resource.data.projectId == projectId;
+        allow create: if isValidId(projectId)
+          && isValidId(notificationId)
+          && isVerifiedUser()
+          && isValidNotification(incoming(), projectId)
+          && incoming().id == notificationId
+          && incoming().createdAt == request.time
+          && parentProjectExistsAfter(projectId);
+        allow update: if isValidId(projectId)
+          && isValidId(notificationId)
+          && isVerifiedUser()
+          && isValidNotification(incoming(), projectId)
+          && incoming().id == existing().id
+          && incoming().projectId == existing().projectId
+          && incoming().createdAt == existing().createdAt
+          && incoming().diff(existing()).affectedKeys().hasOnly(['read']);
+        allow delete: if false;
+      }
+    }
+  }
+}

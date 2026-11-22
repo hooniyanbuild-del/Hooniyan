@@ -1,0 +1,6 @@
+{
+  "name": "Hooniyan Build - Contractor Progress Report",
+  "description": "Portal monitoring progres konstruksi interaktif untuk klien dan manajemen dengan timeline, rekap mingguan, unggah foto berkala, chat pengawas real-time, dan ekspor PDF.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

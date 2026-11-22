@@ -1,0 +1,360 @@
+import React, { useState } from 'react';
+import { 
+  TrendingUp, 
+  Layers, 
+  CheckCircle2, 
+  Clock, 
+  Plus, 
+  Save 
+} from 'lucide-react';
+import { WeeklyProgress, Milestone, UserRole } from '../types/project';
+
+interface ProgressViewProps {
+  weeklyRecords: WeeklyProgress[];
+  milestones: Milestone[];
+  currentProgress: number;
+  plannedProgress: number;
+  currentWeek: number;
+  totalWeeks: number;
+  currentRole: UserRole;
+  activeSubTab?: 'mingguan' | 'tahapan';
+  onChangeSubTab?: (tab: 'mingguan' | 'tahapan') => void;
+  onUpdateMilestone: (id: string, newPercent: number, notes?: string) => void;
+  onAddWeeklyRecord: (record: WeeklyProgress) => void;
+}
+
+export const ProgressView: React.FC<ProgressViewProps> = ({
+  weeklyRecords,
+  milestones,
+  currentProgress,
+  plannedProgress,
+  currentRole,
+  activeSubTab,
+  onChangeSubTab,
+  onUpdateMilestone,
+  onAddWeeklyRecord,
+}) => {
+  const [localSubTab, setLocalSubTab] = useState<'mingguan' | 'tahapan'>('mingguan');
+  const subTab = activeSubTab ?? localSubTab;
+  const setSubTab = onChangeSubTab ?? setLocalSubTab;
+  const [editingMilestoneId, setEditingMilestoneId] = useState<string | null>(null);
+  const [editPercent, setEditPercent] = useState<number>(0);
+  const [editNotes, setEditNotes] = useState<string>('');
+  const [showAddWeek, setShowAddWeek] = useState(false);
+  const [newActual, setNewActual] = useState(0);
+  const [newPlan, setNewPlan] = useState(0);
+  const [newHighlight, setNewHighlight] = useState('');
+
+  const deviation = currentProgress - plannedProgress;
+  const isAhead = deviation >= 0;
+
+  const handleStartEdit = (m: Milestone) => {
+    setEditingMilestoneId(m.id);
+    setEditPercent(m.progressPercent);
+    setEditNotes(m.supervisorNotes || '');
+  };
+
+  const handleSaveEdit = (id: string) => {
+    onUpdateMilestone(id, editPercent, editNotes);
+    setEditingMilestoneId(null);
+  };
+
+  const lastRecord = weeklyRecords[weeklyRecords.length - 1];
+  const prevPlanTotal = lastRecord ? lastRecord.planCumulative : 0;
+  const prevActualTotal = lastRecord ? lastRecord.actualCumulative : 0;
+
+  const handleSaveWeek = (e: React.FormEvent) => {
+    e.preventDefault();
+    const nextW = weeklyRecords.length + 1;
+    const clampedPlanCum = Math.min(100, Number((prevPlanTotal + newPlan).toFixed(1)));
+    const clampedActCum = Math.min(100, Number((prevActualTotal + newActual).toFixed(1)));
+
+    const newRecord: WeeklyProgress = {
+      week: nextW,
+      periodLabel: `Minggu ke-${nextW}`,
+      startDate: '[belum diisi]',
+      endDate: '[belum diisi]',
+      planWeekly: newPlan,
+      actualWeekly: newActual,
+      planCumulative: clampedPlanCum,
+      actualCumulative: clampedActCum,
+      deviation: Number((clampedActCum - clampedPlanCum).toFixed(1)),
+      evaluationStatus: newActual >= newPlan ? 'Lebih Cepat' : 'Perlu Perhatian',
+      highlight: newHighlight || '[belum diisi]',
+    };
+
+    onAddWeeklyRecord(newRecord);
+    setShowAddWeek(false);
+    setNewHighlight('');
+    setNewActual(0);
+    setNewPlan(0);
+  };
+
+  return (
+    <div className="space-y-4 pb-20 sm:pb-8 max-w-2xl lg:max-w-4xl mx-auto">
+      {/* Subtab Segmented Switcher */}
+      <div className="bg-[#282929] p-1 rounded-2xl border border-[#444545] flex items-center">
+        <button
+          onClick={() => setSubTab('mingguan')}
+          className={`flex-1 py-2.5 text-xs font-bold rounded-xl transition-all flex items-center justify-center space-x-1.5 ${
+            subTab === 'mingguan'
+              ? 'bg-[#f95700] text-white shadow-md shadow-[#f95700]/20'
+              : 'text-gray-400 hover:text-white'
+          }`}
+        >
+          <TrendingUp className="w-4 h-4" />
+          <span>Rekap Mingguan ({weeklyRecords.length})</span>
+        </button>
+
+        <button
+          onClick={() => setSubTab('tahapan')}
+          className={`flex-1 py-2.5 text-xs font-bold rounded-xl transition-all flex items-center justify-center space-x-1.5 ${
+            subTab === 'tahapan'
+              ? 'bg-[#f95700] text-white shadow-md shadow-[#f95700]/20'
+              : 'text-gray-400 hover:text-white'
+          }`}
+        >
+          <Layers className="w-4 h-4" />
+          <span>Tahapan Pekerjaan ({milestones.length})</span>
+        </button>
+      </div>
+
+      {/* --- SUBTAB 1: REKAP MINGGUAN --- */}
+      {subTab === 'mingguan' && (
+        <div className="space-y-4">
+          <div className="bg-[#282929] border border-[#444545] rounded-3xl p-5 shadow-lg">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">
+                Ringkasan Progres
+              </span>
+              <span className="text-xs font-bold text-gray-300 bg-[#202121] px-2 py-0.5 rounded-full border border-[#3d3e3e]">
+                Deviasi: {deviation >= 0 ? `+${deviation}%` : `${deviation}%`}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 mt-3 pt-3 border-t border-[#3d3e3e]">
+              <div>
+                <span className="text-[11px] text-gray-400 block">Total Progres Tahapan:</span>
+                <span className="text-2xl font-black text-white">{currentProgress}%</span>
+              </div>
+              <div>
+                <span className="text-[11px] text-gray-400 block">Target Rencana Mingguan:</span>
+                <span className="text-2xl font-black text-gray-300">{plannedProgress}%</span>
+              </div>
+            </div>
+
+            {/* S-Curve Chart (if records exist) */}
+            {weeklyRecords.length > 0 && (
+              <div className="mt-4 pt-4 border-t border-[#3d3e3e]">
+                <span className="text-xs font-semibold text-gray-300 block mb-3">
+                  Grafik Kemajuan Mingguan:
+                </span>
+                <div className="flex items-end space-x-2 h-36 pt-2 pb-1 border-b border-[#3d3e3e]">
+                  {weeklyRecords.map((w) => {
+                    const heightPercent = Math.min(100, Math.max(5, (w.actualCumulative / 100) * 100));
+                    const isLatest = w.week === weeklyRecords.length;
+
+                    return (
+                      <div key={w.week} className="flex-1 flex flex-col items-center h-full justify-end">
+                        <div
+                          style={{ height: `${heightPercent}%` }}
+                          className={`w-full max-w-[24px] rounded-t-lg transition-all ${
+                            isLatest ? 'bg-[#f95700]' : 'bg-amber-500/70'
+                          }`}
+                        />
+                        <span className="text-[10px] mt-2 font-semibold text-gray-400">
+                          W{w.week}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Supervisor Action to Add Next Week */}
+          {currentRole === 'pengawas' && (
+            <div className="flex justify-end">
+              <button
+                onClick={() => setShowAddWeek(!showAddWeek)}
+                className="flex items-center space-x-1.5 bg-[#f95700] hover:bg-[#e04e00] text-white px-3.5 py-2 rounded-xl text-xs font-bold shadow-md shadow-[#f95700]/25 transition-all"
+              >
+                <Plus className="w-4 h-4" />
+                <span>+ Input Rekap Mingguan</span>
+              </button>
+            </div>
+          )}
+
+          {/* Add Week Form */}
+          {showAddWeek && (
+            <form onSubmit={handleSaveWeek} className="bg-[#282929] border border-[#444545] rounded-2xl p-4 text-xs space-y-3 animate-in fade-in">
+              <div className="flex items-center justify-between">
+                <h4 className="font-bold text-white text-sm">Input Rekap Minggu Ke-{weeklyRecords.length + 1}</h4>
+                <span className="text-[11px] text-gray-400">
+                  Akumulasi sebelumnya: {prevActualTotal}%
+                </span>
+              </div>
+              <p className="text-[11px] text-gray-400">
+                Masukkan angka kenaikan progres khusus minggu ini saja (bukan total keseluruhan).
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-gray-300 font-semibold mb-1">Kenaikan Minggu Ini (%)</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    max={Math.max(0, 100 - prevActualTotal)}
+                    required
+                    value={newActual}
+                    onChange={(e) => setNewActual(Number(e.target.value))}
+                    className="w-full bg-[#202121] border border-[#3d3e3e] rounded-lg p-2 text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-gray-300 font-semibold mb-1">Target Rencana Minggu Ini (%)</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    max={Math.max(0, 100 - prevPlanTotal)}
+                    required
+                    value={newPlan}
+                    onChange={(e) => setNewPlan(Number(e.target.value))}
+                    className="w-full bg-[#202121] border border-[#3d3e3e] rounded-lg p-2 text-white"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-gray-300 font-semibold mb-1">Uraian Pekerjaan</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Catatan pekerjaan minggu ini..."
+                  value={newHighlight}
+                  onChange={(e) => setNewHighlight(e.target.value)}
+                  className="w-full bg-[#202121] border border-[#3d3e3e] rounded-lg p-2 text-white"
+                />
+              </div>
+              <div className="flex justify-end space-x-2 pt-2">
+                <button type="button" onClick={() => setShowAddWeek(false)} className="px-3 py-1.5 text-gray-400">Batal</button>
+                <button type="submit" className="bg-[#f95700] text-white px-4 py-1.5 rounded-lg font-bold">Simpan</button>
+              </div>
+            </form>
+          )}
+
+          {/* List or Empty State */}
+          {weeklyRecords.length > 0 ? (
+            <div className="space-y-2.5">
+              {[...weeklyRecords].reverse().map((w) => (
+                <div key={w.week} className="bg-[#282929] border border-[#444545] rounded-2xl p-4">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-sm font-bold text-white">Minggu ke-{w.week}</span>
+                    <span className="text-xs font-black text-amber-400">+{w.actualWeekly}%</span>
+                  </div>
+                  <span className="text-[11px] text-gray-400 block mb-2">{w.periodLabel}</span>
+                  <p className="text-xs text-gray-200 bg-[#202121] p-2.5 rounded-xl border border-[#3d3e3e]">
+                    {w.highlight}
+                  </p>
+                  <div className="mt-2.5 flex items-center justify-between text-[11px] text-gray-400 pt-2 border-t border-[#3d3e3e]">
+                    <span>Total Progres: <strong className="text-white">{w.actualCumulative}%</strong></span>
+                    <span className="text-emerald-400 font-semibold">{w.evaluationStatus}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="bg-[#282929] border border-[#444545] rounded-2xl p-8 text-center text-xs text-gray-400">
+              [belum ada data rekap mingguan]
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* --- SUBTAB 2: TAHAPAN PEKERJAAN --- */}
+      {subTab === 'tahapan' && (
+        <div className="space-y-3">
+          {milestones.length > 0 ? (
+            milestones.map((m, idx) => {
+              const isDone = m.status === 'selesai';
+              const isEditing = editingMilestoneId === m.id;
+
+              return (
+                <div key={m.id} className="bg-[#282929] border border-[#444545] rounded-2xl p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start space-x-3">
+                      <div className="p-1.5 rounded-xl bg-[#202121] text-gray-400 shrink-0 border border-[#3d3e3e]">
+                        {isDone ? <CheckCircle2 className="w-4 h-4 text-emerald-400" /> : <Clock className="w-4 h-4" />}
+                      </div>
+                      <div>
+                        <h4 className="text-xs sm:text-sm font-bold text-white">{m.name}</h4>
+                        <p className="text-[11px] text-gray-400 mt-0.5">
+                          Bobot: {m.weight}% • Target: {m.targetEndDate || '[belum diisi]'}
+                        </p>
+                        {m.supervisorNotes && (
+                          <p className="text-[11px] text-gray-300 bg-[#202121] p-2 rounded-lg mt-2 border border-[#3d3e3e]">
+                            Catatan: {m.supervisorNotes}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="text-right shrink-0">
+                      <span className="text-base font-black text-white">{m.progressPercent}%</span>
+                      {currentRole === 'pengawas' && !isEditing && (
+                        <button
+                          onClick={() => handleStartEdit(m)}
+                          className="mt-1 block text-[11px] text-[#f95700] hover:underline"
+                        >
+                          Ubah %
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="mt-3">
+                    <div className="w-full bg-[#202121] h-2 rounded-full overflow-hidden border border-[#3d3e3e]">
+                      <div
+                        className="h-full bg-[#f95700] rounded-full transition-all duration-500"
+                        style={{ width: `${m.progressPercent}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  {isEditing && (
+                    <div className="mt-3 pt-3 border-t border-[#3d3e3e] space-y-2 text-xs">
+                      <input
+                        type="range"
+                        min={0}
+                        max={100}
+                        value={editPercent}
+                        onChange={(e) => setEditPercent(Number(e.target.value))}
+                        className="w-full accent-[#f95700]"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Catatan inspeksi..."
+                        value={editNotes}
+                        onChange={(e) => setEditNotes(e.target.value)}
+                        className="w-full bg-[#202121] border border-[#3d3e3e] rounded-lg p-2 text-white"
+                      />
+                      <div className="flex justify-end space-x-2 pt-1">
+                        <button onClick={() => setEditingMilestoneId(null)} className="px-3 py-1 text-gray-400">Batal</button>
+                        <button onClick={() => handleSaveEdit(m.id)} className="bg-[#f95700] text-white px-3 py-1 rounded-lg font-bold">Simpan</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          ) : (
+            <div className="bg-[#282929] border border-[#444545] rounded-2xl p-8 text-center text-xs text-gray-400">
+              [belum ada data tahapan]
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
