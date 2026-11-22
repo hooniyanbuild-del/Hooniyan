@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Link2, Check, Share2, UserCheck, HardHat } from 'lucide-react';
+import { X, Link2, Check, Share2, UserCheck } from 'lucide-react';
 
 interface ShareModalProps {
   isOpen: boolean;
@@ -12,29 +12,28 @@ export const ShareModal: React.FC<ShareModalProps> = ({
   onClose,
   signedInEmail,
 }) => {
-  const [copiedTarget, setCopiedTarget] = useState<'consumer' | 'supervisor' | null>(null);
+  const [copied, setCopied] = useState(false);
 
   if (!isOpen) return null;
 
-  const baseUrl = `${window.location.origin}${window.location.pathname}`;
-  const supervisorUrl = `${baseUrl}?mode=pengawas`;
+  const shareUrl = `${window.location.origin}${window.location.pathname}?view=klien`;
 
-  const handleCopy = async (url: string, target: 'consumer' | 'supervisor') => {
+  const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText(url);
-      setCopiedTarget(target);
-      setTimeout(() => setCopiedTarget(null), 2000);
+      await navigator.clipboard.writeText(shareUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
     } catch {
       const textArea = document.createElement('textarea');
-      textArea.value = url;
+      textArea.value = shareUrl;
       textArea.style.position = 'fixed';
       textArea.style.opacity = '0';
       document.body.appendChild(textArea);
       textArea.select();
       try {
         document.execCommand('copy');
-        setCopiedTarget(target);
-        setTimeout(() => setCopiedTarget(null), 2000);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
       } finally {
         document.body.removeChild(textArea);
       }
@@ -75,54 +74,31 @@ export const ShareModal: React.FC<ShareModalProps> = ({
             </div>
           )}
 
-          <div className="space-y-2">
+          <div className="space-y-2.5">
             <label className="block text-gray-200 font-bold">
-              Link Konsumen (Tanpa Login & Tanpa Tombol Masuk)
+              Link Proyek untuk Konsumen (Mode Lihat Saja)
             </label>
             <p className="text-[11px] text-gray-400">
-              Bagikan link ini ke konsumen. Tampilan bersih khusus melihat progres tanpa tombol login.
+              Link ini khusus dibagikan ke konsumen. Tidak ada tombol login/masuk sama sekali—konsumen hanya bisa memantau progres, foto, dan chat pengawas.
             </p>
             <div className="flex items-center space-x-2">
               <input
                 type="text"
                 readOnly
-                value={baseUrl}
+                value={shareUrl}
                 className="flex-1 bg-[#202121] border border-[#3d3e3e] rounded-xl px-3 py-2 text-gray-300 text-[11px] outline-none select-all"
               />
               <button
                 type="button"
-                onClick={() => handleCopy(baseUrl, 'consumer')}
+                onClick={handleCopy}
                 className={`flex items-center space-x-1.5 px-3.5 py-2 rounded-xl font-bold border transition-colors shrink-0 ${
-                  copiedTarget === 'consumer'
+                  copied
                     ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
                     : 'bg-[#f95700] hover:bg-[#e04e00] border-[#f95700] text-white'
                 }`}
               >
-                {copiedTarget === 'consumer' ? <Check className="w-3.5 h-3.5" /> : <Link2 className="w-3.5 h-3.5" />}
-                <span>{copiedTarget === 'consumer' ? 'Tersalin!' : 'Salin Link'}</span>
-              </button>
-            </div>
-          </div>
-
-          <div className="pt-3 border-t border-[#3d3e3e] space-y-2">
-            <label className="flex items-center space-x-1.5 text-gray-300 font-semibold text-[11px]">
-              <HardHat className="w-3.5 h-3.5 text-amber-400" />
-              <span>Link Khusus Pengawas (Simpan untuk Masuk / Edit)</span>
-            </label>
-            <div className="flex items-center space-x-2">
-              <input
-                type="text"
-                readOnly
-                value={supervisorUrl}
-                className="flex-1 bg-[#202121] border border-[#3d3e3e] rounded-xl px-3 py-1.5 text-gray-400 text-[10px] outline-none select-all"
-              />
-              <button
-                type="button"
-                onClick={() => handleCopy(supervisorUrl, 'supervisor')}
-                className="flex items-center space-x-1 px-2.5 py-1.5 rounded-xl font-semibold border border-[#444545] bg-[#202121] hover:bg-[#333434] text-gray-200 text-[10px] shrink-0"
-              >
-                {copiedTarget === 'supervisor' ? <Check className="w-3 h-3 text-emerald-400" /> : <Link2 className="w-3 h-3" />}
-                <span>{copiedTarget === 'supervisor' ? 'Tersalin' : 'Salin'}</span>
+                {copied ? <Check className="w-3.5 h-3.5" /> : <Link2 className="w-3.5 h-3.5" />}
+                <span>{copied ? 'Tersalin!' : 'Salin Link'}</span>
               </button>
             </div>
           </div>
